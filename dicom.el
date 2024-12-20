@@ -254,11 +254,12 @@ If REUSE is non-nil, reuse image buffer."
   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
     (cond
      ((file-exists-p dst)
+      (message "Playing %s…" dicom--file)
       (call-process-shell-command (format "(mpv --loop %s) & disown" (shell-quote-argument dst)) nil 0))
      (dicom--proc
       (message "Conversion in progress…"))
      (t
-      (message "Converting %s ⟶ %s…" dicom--file tmp)
+      (message "Converting %s ⟶ %s…" dicom--file dst)
       (let (dicom--timeout)
         (dicom--async (lambda (success)
                         (if success
