@@ -78,16 +78,16 @@
 (defvar-local dicom--proc nil
   "Active conversion process in current buffer.")
 
-(defconst dicom--dir-placeholder
+(defconst dicom--thumb-placeholder
   '( :margin 8 :type svg :width 267 :height 200
      :data "<svg xmlns='http://www.w3.org/2000/svg' width='267' height='200'>
   <rect width='267' height='200' fill='black' stroke='gray' stroke-width='1'/>
   <line x1='0' y1='0' x2='267' y2='200' stroke='gray' stroke-width='1'/>
   <line x1='0' y1='200' x2='267' y2='0' stroke='gray' stroke-width='1'/>
 </svg>")
-  "Placeholder image in `dicom-dir-mode' buffers.")
+  "Thumbnail placeholder image.")
 
-(defconst dicom--image-placeholder
+(defconst dicom--large-placeholder
   (propertize
    " "
    'pointer 'arrow
@@ -98,17 +98,19 @@
   <line x1='0' y1='0' x2='800' y2='600' stroke='gray' stroke-width='1'/>
   <line x1='0' y1='600' x2='800' y2='0' stroke='gray' stroke-width='1'/>
 </svg>"))
-  "Placeholder image in `dicom-image-mode' buffers.")
+  "Large placeholder image.")
 
 (defun dicom--stop (proc)
   "Gracefully stop PROC."
-  (ignore-errors (signal-process proc 'TERM))
-  (run-at-time 1 nil (lambda () (ignore-errors (delete-process proc)))))
+  (when proc
+    (ignore-errors (signal-process proc 'TERM))
+    (run-at-time 1 nil (lambda () (ignore-errors (delete-process proc))))))
 
 (defun dicom--put-image (pos file)
   "Display image FILE at POS."
   (with-silent-modifications
-    (put-text-property pos (1+ pos) 'display `(image :margin 8 :type png :file ,file))))
+    (put-text-property pos (1+ pos) 'display
+                       `(image :margin 8 :type png :file ,file))))
 
 (defun dicom--async (cb &rest args)
   "Run process with ARGS asynchronously and call CB when the process finished."
@@ -187,7 +189,7 @@
                 (mouse-posn-property (event-start last-input-event)
                                      'dicom--file)
               (get-text-property (point) 'dicom--file))))
-      (dicom-open file 'reuse)
+      (dicom-open file (and (not last-prefix-arg) "*dicom image*"))
     (user-error "No image at point")))
 
 (defvar-keymap dicom-dir-mode-map
@@ -214,27 +216,20 @@
 
 (defun dicom-open (file &optional reuse)
   "Open DICOM dir or image FILE.
-If REUSE is non-nil, reuse image buffer."
+REUSE can be a buffer name to reuse."
   (interactive "fDICOM: ")
-  (if (or (file-directory-p file) (string-suffix-p "/DICOMDIR" file))
-      (let* ((default-directory
-              (file-name-as-directory
-               (expand-file-name (string-remove-suffix "/DICOMDIR" file))))
-             (buf (dicom--buffer-name default-directory)))
-        (unless (get-buffer buf)
-          (with-current-buffer (get-buffer-create buf)
-            (dicom--dir-setup)))
-        (pop-to-buffer buf))
-    (let* ((file (expand-file-name file))
-           (default-directory (file-name-directory file))
-           (buf (if reuse "*dicom image*" (dicom--buffer-name file))))
-      (unless (when-let ((buf (get-buffer buf)))
-                (equal (buffer-local-value 'dicom--file buf) file))
-        (with-current-buffer (get-buffer-create buf)
-          (dicom--image-setup file)))
-      (if reuse
-          (display-buffer buf)
-        (pop-to-buffer buf)))))
+  (let* ((file (expand-file-name (if (directory-name-p file)
+                                     (file-name-concat file "DICOMDIR")
+                                   file)))
+         (default-directory (file-name-directory file))
+         (buf (or reuse (dicom--buffer-name file))))
+    (unless (when-let ((buf (get-buffer buf)))
+              (equal (buffer-local-value 'dicom--file buf) file))
+      (with-current-buffer (get-buffer-create buf)
+        (dicom--setup file)))
+    (if reuse
+        (display-buffer buf)
+      (pop-to-buffer buf))))
 
 (defun dicom--process-queue ()
   "Process conversion queue."
@@ -251,25 +246,16 @@ If REUSE is non-nil, reuse image buffer."
                      (dicom--process-queue))
                    "convert" src "-delete" "1--1" "-thumbnail" "x200" tmp))))
 
-(defun dicom--setup-outline ()
-  "Setup outline mode."
-  (goto-char (point-min))
-  (setq-local outline-regexp " [A-Z]"
-              outline-minor-mode-cycle t
-              outline-minor-mode-use-buttons 'in-margins)
-  (outline-minor-mode))
-
 (defun dicom--play (rate)
   "Play DICOM multi frame image with frame RATE."
   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
     (cond
      ((file-exists-p dst)
       (message "Playing %s…" dicom--file)
-      (unless (eq 0 (call-process-shell-command
-                     (format "(mpv --loop %s) & disown"
-                             (shell-quote-argument dst))
-                     nil 0))
-        (error "Could not play video with mpv")))
+      (call-process-shell-command
+       (format "(mpv --loop %s) & disown"
+               (shell-quote-argument dst))
+       nil 0))
      (dicom--proc
       (message "Conversion in progress…"))
      (t
@@ -287,116 +273,127 @@ If REUSE is non-nil, reuse image buffer."
                               rate
                               (shell-quote-argument tmp))))))))
 
-(defun dicom--image-setup (file)
-  "Setup `dicom-image-mode' buffer for image FILE."
-  (dicom-image-mode)
+(defun dicom--setup (file)
+  "Setup buffer for FILE."
   (dicom--stop dicom--proc)
-  (setq-local dicom--proc nil
-              dicom--file file
-              buffer-read-only t
-              revert-buffer-function (lambda (&rest _) (dicom--image-setup file))
-              header-line-format
-              (format
-               (propertize " DICOM IMAGE %s"
-                           'face '(:inherit header-line :height 1.5 :weight bold))
-               (if-let ((dir (locate-dominating-file file "DICOMDIR")))
-                   (file-name-sans-extension
-                    (file-relative-name file (file-name-parent-directory dir)))
-                 (file-name-base file))))
-  (with-silent-modifications
-    (erase-buffer)
-    (insert "\n")
-    (pcase-let* ((default-directory "/")
-                 (`(,dst . ,tmp) (dicom--cache-name (concat "large" file)))
-                 (pos (point))
-                 (data (dicom--read dicom--file)))
-      (insert dicom--image-placeholder "\n")
-      (when (alist-get 'NumberOfFrames (car data))
-        (insert-button
-         "[PLAY]" 'action
-         (lambda (_)
-           (dicom--play (or (alist-get 'RecommendedDisplayFrameRate (car data))
-                            (alist-get 'CineRate (car data))
-                            25))))
-        (insert "\n"))
-      (mapc #'dicom--insert data)
-      (dicom--setup-outline)
-      (if (file-exists-p dst)
-          (dicom--put-image pos dst)
-        (dicom--async (lambda (success)
-                        (if success
-                         (progn
-                           (rename-file tmp dst)
-                           (dicom--put-image pos dst))
-                       (delete-file tmp)))
-                      "convert" file "-delete" "1--1" tmp)))))
-
-(defun dicom--dir-setup ()
-  "Setup `dicom-dir-mode' buffer."
-  (dicom-dir-mode)
-  (dicom--stop dicom--proc)
+  (if (string-suffix-p "DICOMDIR" file) (dicom-dir-mode) (dicom-image-mode))
   (setq-local dicom--queue nil
               dicom--proc nil
-              dicom--file (expand-file-name "DICOMDIR")
+              dicom--file file
               buffer-read-only t
               truncate-lines nil
-              revert-buffer-function (lambda (&rest _) (dicom--dir-setup))
+              bookmark-make-record-function #'dicom--bookmark-record
+              revert-buffer-function (lambda (&rest _) (dicom--setup file))
               fringe-indicator-alist '((continuation . nil)
                                        (truncation . nil))
+              outline-regexp " [A-Z]"
+              outline-minor-mode-cycle t
+              outline-minor-mode-use-buttons 'in-margins
               header-line-format
-              (format (propertize " DICOM DIR %s"
-                                  'face '(:inherit header-line :height 1.5 :weight bold))
-                      (file-name-base (directory-file-name default-directory))))
+              (format (propertize
+                       " %s %s"
+                       'face '(:inherit header-line :height 1.5 :weight bold))
+                      mode-name (cadr (dicom--shorten dicom--file))))
   (with-silent-modifications
     (erase-buffer)
-    (dolist (item (dicom--read dicom--file))
-      (let ((type (alist-get 'DirectoryRecordType item))
-            (pos (point)))
-        (dicom--insert item)
-        (when (equal type "IMAGE")
-          (pcase-let* ((src (expand-file-name
-                             (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
-                       (`(,dst . ,tmp) (dicom--cache-name src))
-                       (tooltip (buffer-substring-no-properties (1+ pos) (point))))
-            (delete-region pos (point))
-            (insert (propertize
-                     " " 'display `(image ,@dicom--dir-placeholder)
-                     'pointer 'arrow
-                     'dicom--file src
-                     'help-echo tooltip))
-            (if (file-exists-p dst)
-                (dicom--put-image pos dst)
-              (push (list pos dst tmp src) dicom--queue))))))
-    (dicom--setup-outline)
-    (setq dicom--queue (nreverse dicom--queue))
-    (dicom--process-queue)))
+    (funcall (intern (format "%s--setup" major-mode)))
+    (goto-char (point-min))
+    (outline-minor-mode)))
+
+(defun dicom-image-mode--setup ()
+  "Setup `dicom-image-mode' buffer."
+  (insert "\n")
+  (pcase-let* ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
+               (pos (point))
+               (data (dicom--read dicom--file)))
+    (insert dicom--large-placeholder "\n")
+    (when-let ((frames (alist-get 'NumberOfFrames (car data))))
+      (insert-button
+       (format "[PLAY %s FRAMES]" frames)
+       'action
+       (lambda (_)
+         (dicom--play (or (alist-get 'RecommendedDisplayFrameRate (car data))
+                          (alist-get 'CineRate (car data))
+                          25))))
+      (insert "\n"))
+    (mapc #'dicom--insert data)
+    (if (file-exists-p dst)
+        (dicom--put-image pos dst)
+      (dicom--async (lambda (success)
+                      (if success
+                          (progn
+                            (rename-file tmp dst)
+                            (dicom--put-image pos dst))
+                        (delete-file tmp)))
+                    "convert" dicom--file "-delete" "1--1" tmp))))
+
+(defun dicom-dir-mode--setup ()
+  "Setup `dicom-dir-mode' buffer."
+  (dolist (item (dicom--read dicom--file))
+    (let ((type (alist-get 'DirectoryRecordType item))
+          (pos (point)))
+      (dicom--insert item)
+      (when (equal type "IMAGE")
+        (pcase-let* ((src (expand-file-name
+                           (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
+                     (`(,dst . ,tmp) (dicom--cache-name src))
+                     (tooltip (buffer-substring-no-properties (1+ pos) (point))))
+          (delete-region pos (point))
+          (insert (propertize
+                   " " 'display `(image ,@dicom--thumb-placeholder)
+                   'pointer 'arrow
+                   'dicom--file src
+                   'help-echo tooltip))
+          (if (file-exists-p dst)
+              (dicom--put-image pos dst)
+            (push (list pos dst tmp src) dicom--queue))))))
+  (setq dicom--queue (nreverse dicom--queue))
+  (dicom--process-queue))
+
+(defun dicom--shorten (file)
+  "Shortened FILE name."
+  (if (string-suffix-p "DICOMDIR" file)
+      (list "dicom dir: "
+            (file-name-base
+             (directory-file-name
+              (file-name-parent-directory file))))
+    (list "dicom image: "
+          (if-let ((dir (locate-dominating-file file "DICOMDIR")))
+              (file-name-sans-extension
+               (file-relative-name file (file-name-parent-directory dir)))
+            (file-name-base file)))))
 
 (defun dicom--buffer-name (file)
   "Buffer name for FILE."
-  (format "*dicom: %s*" (file-name-base (directory-file-name file))))
+  (format "*%s*" (string-join (dicom--shorten file))))
 
 ;;;###autoload
-(defun dicom-dir-mode-auto ()
-  "Enable `dicom-dir-mode' in current buffer."
-  (setq-local buffer-file-name nil
-              buffer-file-truename nil)
-  (rename-buffer (dicom--buffer-name default-directory) t)
-  (dicom--dir-setup))
-
-;;;###autoload
-(defun dicom-image-mode-auto ()
-  "Enable `dicom-image-mode' in current buffer."
+(defun dicom-auto-mode ()
+  "Enable either `dicom-image-mode' or `dicom-dir-mode' in current buffer."
   (let ((file (expand-file-name buffer-file-name)))
     (setq-local buffer-file-name nil
                 buffer-file-truename nil)
     (rename-buffer (dicom--buffer-name file) t)
-    (dicom--image-setup file)))
+    (dicom--setup file)))
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.\\(?:dcm\\|ima\\)\\'" . dicom-image-mode-auto))
+(add-to-list 'auto-mode-alist '("\\.\\(?:dcm\\|ima\\)\\'" . dicom-auto-mode))
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("DICOMDIR\\'" . dicom-dir-mode-auto))
+(add-to-list 'auto-mode-alist '("DICOMDIR\\'" . dicom-auto-mode))
+
+;;;###autoload
+(defun dicom-bookmark-jump (bm)
+  "Jump to DICOM bookmark BM."
+  (declare-function bookmark-get-filename "bookmark")
+  (dicom-open (bookmark-get-filename bm)))
+(put 'dicom-bookmark-jump 'bookmark-handler-type "DICOM")
+
+(defun dicom--bookmark-record ()
+  "Create DICOM bookmark."
+  `(,(string-join (dicom--shorten dicom--file))
+    (filename . ,dicom--file)
+    (handler . ,#'dicom-bookmark-jump)))
 
 (provide 'dicom)
 ;;; dicom.el ends here
