@@ -236,7 +236,7 @@ progress:${percent-pos}%'"
    (when-let ((pos (text-property-not-all (point-min) (point-max) 'display nil))
               (image (cdr (get-text-property pos 'display))))
      (setf (plist-get image :scale)
-           (+ (* n 0.1) (or (plist-get image :scale) 1.0)))
+           (max 0.1 (min 10 (+ (* n 0.1) (or (plist-get image :scale) 1.0)))))
      (with-silent-modifications
        (put-text-property pos (1+ pos) 'display `(image ,@image))))))
 
