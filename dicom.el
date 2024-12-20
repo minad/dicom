@@ -34,8 +34,9 @@
 ;; (file extension *.dcm or *.ima).  Furthermore the command `dicom-open' opens
 ;; DICOMDIR directory files or DICOM image files interactively.
 
-;; The package relies on a few external programs, which are all widely available
-;; on Linux distributions.
+;; Emacs must be compiled with support for PNG, XML and SVG.  The package relies
+;; on a few external programs, which are all widely available on Linux
+;; distributions.
 
 ;; - `convert' from the ImageMagick suite
 ;; - `ffmpeg' for video conversion
@@ -69,18 +70,21 @@
   "Timeout for conversion.")
 
 (defvar-local dicom--file nil
-  "Current DICOM file open in current buffer.")
+  "DICOM file associated with the current buffer.")
 
 (defvar-local dicom--queue nil
   "Conversion process queue in current buffer.")
 
 (defvar-local dicom--proc nil
-  "Currently running conversion process in current buffer.")
+  "Active conversion process in current buffer.")
 
 (defconst dicom--dir-placeholder
-  '( :margin 8 :type svg :width 200 :height 200
-     :data "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'>
-<rect width='200' height='200' fill='gray'/></svg>")
+  '( :margin 8 :type svg :width 267 :height 200
+     :data "<svg xmlns='http://www.w3.org/2000/svg' width='267' height='200'>
+  <rect width='267' height='200' fill='black' stroke='gray' stroke-width='1'/>
+  <line x1='0' y1='0' x2='267' y2='200' stroke='gray' stroke-width='1'/>
+  <line x1='0' y1='200' x2='267' y2='0' stroke='gray' stroke-width='1'/>
+</svg>")
   "Placeholder image in `dicom-dir-mode' buffers.")
 
 (defconst dicom--image-placeholder
@@ -90,7 +94,10 @@
    'display
    '(image :margin 8 :type svg :width 800 :height 600
            :data "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'>
-<rect width='800' height='600' fill='gray'/></svg>"))
+  <rect width='800' height='600' fill='black' stroke='gray' stroke-width='1'/>
+  <line x1='0' y1='0' x2='800' y2='600' stroke='gray' stroke-width='1'/>
+  <line x1='0' y1='600' x2='800' y2='0' stroke='gray' stroke-width='1'/>
+</svg>"))
   "Placeholder image in `dicom-image-mode' buffers.")
 
 (defun dicom--stop (proc)
