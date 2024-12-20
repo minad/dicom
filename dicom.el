@@ -66,6 +66,13 @@
                            "emacs/dicom/"))
   "Cache directory for converted images.")
 
+(defvar dicom--mpv-args
+  "--loop --osd-font-size=16 --osd-margin-x=0 --osd-margin-y=0 --osd-level=3 \
+--osd-status-msg='fps:${container-fps} \
+frame:${estimated-frame-number}/${estimated-frame-count} \
+progress:${percent-pos}%'"
+  "MPV command line arguments.")
+
 (defvar dicom--timeout 3
   "Timeout for conversion.")
 
@@ -293,8 +300,7 @@ REUSE can be a buffer name to reuse."
       ((file-exists-p dst)
        (message "Playing %s…" dicom--file)
        (call-process-shell-command
-        (format "(mpv --loop %s) & disown"
-                (shell-quote-argument dst))
+        (format "(mpv %s %s) & disown" dicom--mpv-args (shell-quote-argument dst))
         nil 0))
       (dicom--proc
        (message "Conversion in progress…"))
