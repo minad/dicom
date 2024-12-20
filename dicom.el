@@ -69,6 +69,9 @@
 (defvar dicom--timeout 3
   "Timeout for conversion.")
 
+(defvar-local dicom--rate nil
+  "Frame rate of image.")
+
 (defvar-local dicom--file nil
   "DICOM file associated with the current buffer.")
 
@@ -192,25 +195,57 @@
       (dicom-open file (and (not last-prefix-arg) "*dicom image*"))
     (user-error "No image at point")))
 
+(defvar-keymap dicom-mode-map
+  :doc "Keymap used by `dicom-dir-mode' and `dicom-image-mod'."
+  :parent special-mode-map
+  "p" #'dicom-play
+  "+" #'dicom-larger
+  "-" #'dicom-smaller
+  "TAB" #'outline-cycle
+  "<backtab>" #'outline-cycle-buffer)
+
 (defvar-keymap dicom-dir-mode-map
   :doc "Keymap used by `dicom-dir-mode'."
-  :parent special-mode-map
-  "TAB" #'outline-cycle
-  "<backtab>" #'outline-cycle-buffer
+  :parent dicom-mode-map
   "RET" #'dicom-open-at-point
   "<mouse-1>" #'dicom-open-at-point)
 
 (defvar-keymap dicom-image-mode-map
   :doc "Keymap used by `dicom-image-mode'."
-  :parent special-mode-map
-  "TAB" #'outline-cycle
-  "<backtab>" #'outline-cycle-buffer)
+  :parent dicom-mode-map)
 
-(define-derived-mode dicom-dir-mode special-mode "DICOM DIR"
+(defmacro dicom--image-buffer (&rest body)
+  `(with-current-buffer (if (eq major-mode #'dicom-image-mode)
+                            (current-buffer)
+                          (or (get-buffer "*dicom image*")
+                              (user-error "No open image")))
+     ,@body))
+
+(defun dicom-larger (n)
+  "Image larger by N."
+  (interactive "p" dicom-dir-mode dicom-image-mode)
+  (dicom--image-buffer
+   (when-let ((pos (text-property-not-all (point-min) (point-max) 'display nil))
+              (image (cdr (get-text-property pos 'display))))
+     (setf (plist-get image :scale)
+           (+ (* n 0.1) (or (plist-get image :scale) 1.0)))
+     (with-silent-modifications
+       (put-text-property pos (1+ pos) 'display `(image ,@image))))))
+
+(defun dicom-smaller (n)
+  "Image smaller by N."
+  (interactive "p" dicom-dir-mode dicom-image-mode)
+  (dicom-larger (- n)))
+
+(define-derived-mode dicom-mode special-mode "DICOM"
+  "DICOM mode."
+  :interactive nil :abbrev-table nil :syntax-table nil)
+
+(define-derived-mode dicom-dir-mode dicom-mode "DICOM DIR"
   "DICOM DIR mode."
   :interactive nil :abbrev-table nil :syntax-table nil)
 
-(define-derived-mode dicom-image-mode special-mode "DICOM IMAGE"
+(define-derived-mode dicom-image-mode dicom-mode "DICOM IMAGE"
   "DICOM IMAGE mode."
   :interactive nil :abbrev-table nil :syntax-table nil)
 
@@ -246,32 +281,36 @@ REUSE can be a buffer name to reuse."
                      (dicom--process-queue))
                    "convert" src "-delete" "1--1" "-thumbnail" "x200" tmp))))
 
-(defun dicom--play (rate)
-  "Play DICOM multi frame image with frame RATE."
-  (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
-    (cond
-     ((file-exists-p dst)
-      (message "Playing %s…" dicom--file)
-      (call-process-shell-command
-       (format "(mpv --loop %s) & disown"
-               (shell-quote-argument dst))
-       nil 0))
-     (dicom--proc
-      (message "Conversion in progress…"))
-     (t
-      (message "Converting %s ⟶ %s…" dicom--file dst)
-      (let (dicom--timeout)
-        (dicom--async (lambda (success)
-                        (if success
-                            (progn
-                              (rename-file tmp dst)
-                              (dicom--play rate))
-                          (delete-file tmp)))
-                      "sh" "-c"
-                      (format "convert %s ppm:- | ffmpeg -framerate %s -i - %s"
-                              (shell-quote-argument dicom--file)
-                              rate
-                              (shell-quote-argument tmp))))))))
+(defun dicom-play ()
+  "Play DICOM multi frame image."
+  (interactive nil dicom-dir-mode dicom-image-mode)
+  (dicom--image-buffer
+   (unless dicom--rate
+     (user-error "No multi frame image"))
+   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
+     (cond
+      ((file-exists-p dst)
+       (message "Playing %s…" dicom--file)
+       (call-process-shell-command
+        (format "(mpv --loop %s) & disown"
+                (shell-quote-argument dst))
+        nil 0))
+      (dicom--proc
+       (message "Conversion in progress…"))
+      (t
+       (message "Converting %s ⟶ %s…" dicom--file dst)
+       (let (dicom--timeout)
+         (dicom--async (lambda (success)
+                         (if success
+                             (progn
+                               (rename-file tmp dst)
+                               (dicom-play))
+                           (delete-file tmp)))
+                       "sh" "-c"
+                       (format "convert %s ppm:- | ffmpeg -framerate %s -i - %s"
+                               (shell-quote-argument dicom--file)
+                               dicom--rate
+                               (shell-quote-argument tmp)))))))))
 
 (defun dicom--setup (file)
   "Setup buffer for FILE."
@@ -302,20 +341,23 @@ REUSE can be a buffer name to reuse."
 
 (defun dicom-image-mode--setup ()
   "Setup `dicom-image-mode' buffer."
-  (insert "\n")
   (pcase-let* ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
-               (pos (point))
-               (data (dicom--read dicom--file)))
-    (insert dicom--large-placeholder "\n")
+               (data (dicom--read dicom--file))
+               (pos nil))
+    (insert "\n")
+    (insert-button "+ LARGER" 'action (lambda (_) (dicom-larger 1)))
+    (insert " | ")
+    (insert-button "- SMALLER" 'action (lambda (_) (dicom-smaller 1)))
     (when-let ((frames (alist-get 'NumberOfFrames (car data))))
-      (insert-button
-       (format "[PLAY %s FRAMES]" frames)
-       'action
-       (lambda (_)
-         (dicom--play (or (alist-get 'RecommendedDisplayFrameRate (car data))
-                          (alist-get 'CineRate (car data))
-                          25))))
-      (insert "\n"))
+      (setq dicom--rate (or (alist-get 'RecommendedDisplayFrameRate (car data))
+                            (alist-get 'CineRate (car data))
+                            25))
+      (insert " | ")
+      (insert-button (format "p PLAY %s FRAMES" frames)
+                     'action (lambda (_) (dicom-play))))
+    (insert "\n")
+    (setq pos (point))
+    (insert dicom--large-placeholder "\n")
     (mapc #'dicom--insert data)
     (if (file-exists-p dst)
         (dicom--put-image pos dst)
