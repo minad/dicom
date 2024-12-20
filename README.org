@@ -1,5 +1,11 @@
 * dicom.el - DICOM viewer
 
+#+html: <a href="https://www.gnu.org/software/emacs/"><img alt="GNU Emacs" src="https://github.com/minad/corfu/blob/screenshots/emacs.svg?raw=true"/></a>
+#+html: <a href="https://elpa.gnu.org/packages/dicom.html"><img alt="GNU ELPA" src="https://elpa.gnu.org/packages/dicom.svg"/></a>
+#+html: <a href="https://elpa.gnu.org/devel/dicom.html"><img alt="GNU-devel ELPA" src="https://elpa.gnu.org/devel/dicom.svg"/></a>
+#+html: <a href="https://melpa.org/#/dicom"><img alt="MELPA" src="https://melpa.org/packages/dicom-badge.svg"/></a>
+#+html: <a href="https://stable.melpa.org/#/dicom"><img alt="MELPA Stable" src="https://stable.melpa.org/packages/dicom-badge.svg"/></a>
+
 DICOM files are typically used for medical imaging (US, CT, MRI, PET). This
 package adds the ability to view such files in Emacs. The images and metadata
 are displayed in regular Emacs buffers. The package registers itself in
