@@ -149,7 +149,7 @@
                (unless (eq 0 (call-process "dcm2xml" nil t nil
                                            "--quiet" "--charset-assume"
                                            "latin-1" "--convert-to-utf8" file))
-                 (error "dcm2xml failed"))
+                 (error "Reading DICOM metadata with dcm2xml failed"))
                (libxml-parse-xml-region)))
         (items nil))
     (dolist (item (append (and (not (string-suffix-p "DICOMDIR" file))
@@ -262,7 +262,7 @@ If REUSE is non-nil, reuse image buffer."
                      (format "(mpv --loop %s) & disown"
                              (shell-quote-argument dst))
                      nil 0))
-        (error "mpv failed")))
+        (error "Could not play video with mpv")))
      (dicom--proc
       (message "Conversion in progress…"))
      (t
