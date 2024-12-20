@@ -146,7 +146,10 @@
 (defun dicom--read (file)
   "Read DICOM FILE and return list of items."
   (let ((dom (with-temp-buffer
-               (call-process "dcm2xml" nil t nil "--quiet" "--charset-assume" "latin-1" "--convert-to-utf8" file)
+               (unless (eq 0 (call-process "dcm2xml" nil t nil
+                                           "--quiet" "--charset-assume"
+                                           "latin-1" "--convert-to-utf8" file))
+                 (error "dcm2xml failed"))
                (libxml-parse-xml-region)))
         (items nil))
     (dolist (item (append (and (not (string-suffix-p "DICOMDIR" file))
@@ -255,7 +258,11 @@ If REUSE is non-nil, reuse image buffer."
     (cond
      ((file-exists-p dst)
       (message "Playing %s…" dicom--file)
-      (call-process-shell-command (format "(mpv --loop %s) & disown" (shell-quote-argument dst)) nil 0))
+      (unless (eq 0 (call-process-shell-command
+                     (format "(mpv --loop %s) & disown"
+                             (shell-quote-argument dst))
+                     nil 0))
+        (error "mpv failed")))
      (dicom--proc
       (message "Conversion in progress…"))
      (t
