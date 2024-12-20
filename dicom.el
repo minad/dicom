@@ -215,6 +215,7 @@
   :parent dicom-mode-map)
 
 (defmacro dicom--image-buffer (&rest body)
+  "Run BODY inside image buffer if it exists."
   `(with-current-buffer (if (eq major-mode #'dicom-image-mode)
                             (current-buffer)
                           (or (get-buffer "*dicom image*")
