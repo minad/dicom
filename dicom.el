@@ -298,7 +298,7 @@ REUSE can be a buffer name to reuse."
       (dicom--proc
        (message "Conversion in progress…"))
       (t
-       (message "Converting %s ⟶ %s…" dicom--file dst)
+       (message "Converting %s…" dicom--file)
        (let (dicom--timeout)
          (dicom--async (lambda (success)
                          (if success
