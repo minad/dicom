@@ -111,6 +111,31 @@ progress:${percent-pos}%'"
 </svg>"))
   "Large placeholder image.")
 
+(defvar-keymap dicom-image-map
+  :doc "Keymap used for images at point."
+  "RET" #'dicom-open-at-point
+  "<mouse-1>" #'dicom-open-at-point)
+
+(defvar-keymap dicom-mode-map
+  :doc "Keymap used by `dicom-mode'."
+  :parent special-mode-map
+  "p" #'dicom-play
+  "+" #'dicom-larger
+  "-" #'dicom-smaller
+  "TAB" #'outline-cycle
+  "<backtab>" #'outline-cycle-buffer)
+
+(easy-menu-define dicom-mode-menu dicom-mode-map
+  "Menu for `dicom-mode'."
+  '("DICOM IMAGE"
+    ["Larger" dicom-larger]
+    ["Smaller" dicom-smaller]
+    ["Play" dicom-play]))
+
+(define-derived-mode dicom-mode special-mode "DICOM"
+  "DICOM mode."
+  :interactive nil :abbrev-table nil :syntax-table nil)
+
 (defun dicom--stop (proc)
   "Gracefully stop PROC."
   (when proc
@@ -242,27 +267,6 @@ progress:${percent-pos}%'"
       (dicom-open file (and (not last-prefix-arg) "*dicom image*"))
     (user-error "DICOM: No image at point")))
 
-(defvar-keymap dicom-mode-map
-  :doc "Keymap used by `dicom-mode'."
-  :parent special-mode-map
-  "p" #'dicom-play
-  "+" #'dicom-larger
-  "-" #'dicom-smaller
-  "TAB" #'outline-cycle
-  "<backtab>" #'outline-cycle-buffer)
-
-(defvar-keymap dicom-image-map
-  :doc "Keymap used for images at point."
-  "RET" #'dicom-open-at-point
-  "<mouse-1>" #'dicom-open-at-point)
-
-(easy-menu-define dicom-mode-menu dicom-mode-map
-  "Menu for `dicom-mode'."
-  '("DICOM IMAGE"
-    ["Larger" dicom-larger]
-    ["Smaller" dicom-smaller]
-    ["Play" dicom-play]))
-
 (defmacro dicom--image-buffer (&rest body)
   "Run BODY inside image buffer if it exists."
   `(with-current-buffer (if (dicom--dir-p)
@@ -286,10 +290,6 @@ progress:${percent-pos}%'"
   "Image smaller by N."
   (interactive "p" dicom-mode)
   (dicom-larger (- n)))
-
-(define-derived-mode dicom-mode special-mode "DICOM"
-  "DICOM mode."
-  :interactive nil :abbrev-table nil :syntax-table nil)
 
 (defun dicom-open (file &optional reuse)
   "Open DICOM dir or image FILE.
