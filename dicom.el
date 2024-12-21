@@ -149,6 +149,59 @@ progress:${percent-pos}%'"
                    'help-echo k)))
         (insert (format "    %-25s  %s\n" k v))))))
 
+(defun dicom--insert-all ()
+  "Insert all items into buffer."
+  (dolist (item dicom--data)
+    (let ((pos (point)))
+      (dicom--insert item)
+      (when (equal (alist-get 'DirectoryRecordType item) "IMAGE")
+        (pcase-let* ((src (expand-file-name
+                           (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
+                     (`(,dst . ,tmp) (dicom--cache-name src))
+                     (tooltip (buffer-substring-no-properties (1+ pos) (point))))
+          (delete-region pos (point))
+          (insert (propertize
+                   " " 'display `(image ,@dicom--thumb-placeholder)
+                   'pointer 'arrow
+                   'keymap dicom-image-map
+                   'dicom--file src
+                   'help-echo tooltip))
+          (if (file-exists-p dst)
+              (dicom--put-image pos dst)
+            (dicom--enqueue
+             (lambda (success)
+               (if success
+                   (progn
+                     (rename-file tmp dst)
+                     (dicom--put-image pos dst))
+                 (delete-file tmp)))
+             "convert" src "-delete" "1--1" "-thumbnail" "x200" tmp)))))))
+
+(defun dicom--insert-large ()
+  "Insert large image."
+  (pcase-let ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file))))
+    (insert "\n")
+    (insert-button "+ LARGER" 'action (lambda (_) (dicom-larger 1)))
+    (insert " | ")
+    (insert-button "- SMALLER" 'action (lambda (_) (dicom-smaller 1)))
+    (when-let ((frames (alist-get 'NumberOfFrames (car dicom--data))))
+      (insert " | ")
+      (insert-button (format "p PLAY %s FRAMES" frames)
+                     'action (lambda (_) (dicom-play))))
+    (insert "\n")
+    (let ((pos (point)))
+      (insert dicom--large-placeholder "\n")
+      (if (file-exists-p dst)
+        (dicom--put-image pos dst)
+      (dicom--enqueue
+       (lambda (success)
+         (if success
+             (progn
+               (rename-file tmp dst)
+               (dicom--put-image pos dst))
+           (delete-file tmp)))
+       "convert" dicom--file "-delete" "1--1" tmp)))))
+
 (defun dicom--read (file)
   "Read DICOM FILE and return list of items."
   (let ((dom (with-temp-buffer
@@ -158,7 +211,7 @@ progress:${percent-pos}%'"
                  (error "DICOM: Reading DICOM metadata with dcm2xml failed"))
                (libxml-parse-xml-region)))
         (items nil))
-    (dolist (item (append (and (not (string-suffix-p "DICOMDIR" file))
+    (dolist (item (append (and (not (dicom--dir-p file))
                                (dom-by-tag dom 'data-set))
                           (dom-by-tag dom 'item)))
       (let (alist (hidden t))
@@ -190,7 +243,7 @@ progress:${percent-pos}%'"
     (user-error "DICOM: No image at point")))
 
 (defvar-keymap dicom-mode-map
-  :doc "Keymap used by `dicom-dir-mode' and `dicom-image-mod'."
+  :doc "Keymap used by `dicom-mode'."
   :parent special-mode-map
   "p" #'dicom-play
   "+" #'dicom-larger
@@ -198,18 +251,13 @@ progress:${percent-pos}%'"
   "TAB" #'outline-cycle
   "<backtab>" #'outline-cycle-buffer)
 
-(defvar-keymap dicom-dir-mode-map
-  :doc "Keymap used by `dicom-dir-mode'."
-  :parent dicom-mode-map
+(defvar-keymap dicom-image-map
+  :doc "Keymap used for images at point."
   "RET" #'dicom-open-at-point
   "<mouse-1>" #'dicom-open-at-point)
 
-(defvar-keymap dicom-image-mode-map
-  :doc "Keymap used by `dicom-image-mode'."
-  :parent dicom-mode-map)
-
-(easy-menu-define dicom-image-mode-menu dicom-image-mode-map
-  "Menu for `dicom-image-mode'."
+(easy-menu-define dicom-mode-menu dicom-mode-map
+  "Menu for `dicom-mode'."
   '("DICOM IMAGE"
     ["Larger" dicom-larger]
     ["Smaller" dicom-smaller]
@@ -217,15 +265,15 @@ progress:${percent-pos}%'"
 
 (defmacro dicom--image-buffer (&rest body)
   "Run BODY inside image buffer if it exists."
-  `(with-current-buffer (if (eq major-mode #'dicom-image-mode)
-                            (current-buffer)
-                          (or (get-buffer "*dicom image*")
-                              (user-error "DICOM: No open image")))
+  `(with-current-buffer (if (dicom--dir-p)
+                            (or (get-buffer "*dicom image*")
+                                (user-error "DICOM: No open image"))
+                          (current-buffer))
      ,@body))
 
 (defun dicom-larger (n)
   "Image larger by N."
-  (interactive "p" dicom-dir-mode dicom-image-mode)
+  (interactive "p" dicom-mode)
   (dicom--image-buffer
    (when-let ((pos (text-property-not-all (point-min) (point-max) 'display nil))
               (image (cdr (get-text-property pos 'display))))
@@ -236,19 +284,11 @@ progress:${percent-pos}%'"
 
 (defun dicom-smaller (n)
   "Image smaller by N."
-  (interactive "p" dicom-dir-mode dicom-image-mode)
+  (interactive "p" dicom-mode)
   (dicom-larger (- n)))
 
 (define-derived-mode dicom-mode special-mode "DICOM"
   "DICOM mode."
-  :interactive nil :abbrev-table nil :syntax-table nil)
-
-(define-derived-mode dicom-dir-mode dicom-mode "DICOM DIR"
-  "DICOM DIR mode."
-  :interactive nil :abbrev-table nil :syntax-table nil)
-
-(define-derived-mode dicom-image-mode dicom-mode "DICOM IMAGE"
-  "DICOM IMAGE mode."
   :interactive nil :abbrev-table nil :syntax-table nil)
 
 (defun dicom-open (file &optional reuse)
@@ -267,7 +307,7 @@ REUSE can be a buffer name to reuse."
       (with-current-buffer (get-buffer-create buf)
         (dicom--setup file)))
     (if reuse
-        (display-buffer buf)
+        (display-buffer buf '(nil (inhibit-same-window . t)))
       (pop-to-buffer buf))))
 
 (defun dicom--run (cb &rest args)
@@ -305,7 +345,7 @@ REUSE can be a buffer name to reuse."
 
 (defun dicom-play ()
   "Play DICOM multi frame image."
-  (interactive nil dicom-dir-mode dicom-image-mode)
+  (interactive nil dicom-mode)
   (dicom--image-buffer
    (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
      (cond
@@ -337,8 +377,8 @@ REUSE can be a buffer name to reuse."
                   rate
                   (shell-quote-argument tmp)))))))))
 
-(defun dicom--setup (file)
-  "Setup buffer for FILE."
+(defun dicom--setup-check ()
+  "Check requirements."
   (let (req)
     (unless (display-graphic-p)
       (push "graphical display" req))
@@ -353,9 +393,10 @@ REUSE can be a buffer name to reuse."
     (unless (executable-find "convert")
       (push "convert" req))
     (when req
-      (error "DICOM: %s required to proceed" (string-join req ", "))))
-  (dicom--stop dicom--proc)
-  (if (string-suffix-p "DICOMDIR" file) (dicom-dir-mode) (dicom-image-mode))
+      (error "DICOM: %s required to proceed" (string-join req ", ")))))
+
+(defun dicom--setup-locals (file)
+  "Initialize buffer locals for FILE."
   (setq-local dicom--queue nil
               dicom--proc nil
               dicom--file file
@@ -371,74 +412,34 @@ REUSE can be a buffer name to reuse."
               outline-minor-mode-use-buttons 'in-margins
               header-line-format
               (format (propertize
-                       " %s %s"
+                       " DICOM %s %s"
                        'face '(:inherit header-line :height 1.5 :weight bold))
-                      mode-name (cadr (dicom--file-name))))
+                      (if (dicom--dir-p) "DIR" "IMAGE")
+                      (cadr (dicom--file-name)))))
+
+(defun dicom--setup (file)
+  "Setup buffer for FILE."
+  (dicom--setup-check)
+  (dicom--stop dicom--proc)
+  (dicom-mode)
+  (dicom--setup-locals file)
   (with-silent-modifications
     (erase-buffer)
-    (funcall (intern (format "%s--setup" major-mode)))
+    (unless (dicom--dir-p)
+      (dicom--insert-large))
+    (dicom--insert-all)
     (goto-char (point-min))
     (outline-minor-mode)))
 
-(defun dicom-image-mode--setup ()
-  "Setup `dicom-image-mode' buffer."
-  (pcase-let* ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
-               (pos nil))
-    (insert "\n")
-    (insert-button "+ LARGER" 'action (lambda (_) (dicom-larger 1)))
-    (insert " | ")
-    (insert-button "- SMALLER" 'action (lambda (_) (dicom-smaller 1)))
-    (when-let ((frames (alist-get 'NumberOfFrames (car dicom--data))))
-      (insert " | ")
-      (insert-button (format "p PLAY %s FRAMES" frames)
-                     'action (lambda (_) (dicom-play))))
-    (insert "\n")
-    (setq pos (point))
-    (insert dicom--large-placeholder "\n")
-    (mapc #'dicom--insert dicom--data)
-    (if (file-exists-p dst)
-        (dicom--put-image pos dst)
-      (dicom--enqueue
-       (lambda (success)
-         (if success
-             (progn
-               (rename-file tmp dst)
-               (dicom--put-image pos dst))
-           (delete-file tmp)))
-       "convert" dicom--file "-delete" "1--1" tmp))))
-
-(defun dicom-dir-mode--setup ()
-  "Setup `dicom-dir-mode' buffer."
-  (dolist (item dicom--data)
-    (let ((type (alist-get 'DirectoryRecordType item))
-          (pos (point)))
-      (dicom--insert item)
-      (when (equal type "IMAGE")
-        (pcase-let* ((src (expand-file-name
-                           (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
-                     (`(,dst . ,tmp) (dicom--cache-name src))
-                     (tooltip (buffer-substring-no-properties (1+ pos) (point))))
-          (delete-region pos (point))
-          (insert (propertize
-                   " " 'display `(image ,@dicom--thumb-placeholder)
-                   'pointer 'arrow
-                   'dicom--file src
-                   'help-echo tooltip))
-          (if (file-exists-p dst)
-              (dicom--put-image pos dst)
-            (dicom--enqueue
-             (lambda (success)
-               (if success
-                   (progn
-                     (rename-file tmp dst)
-                     (dicom--put-image pos dst))
-                 (delete-file tmp)))
-             "convert" src "-delete" "1--1" "-thumbnail" "x200" tmp)))))))
+(defun dicom--dir-p (&optional file)
+  "Non-nil if FILE is a DICOMDIR."
+  (setq file (or file dicom--file))
+  (and file (string-search "DICOMDIR" file)))
 
 (defun dicom--file-name (&optional file)
   "Shortened FILE name."
   (setq file (or file dicom--file))
-  (if (string-suffix-p "DICOMDIR" file)
+  (if (dicom--dir-p file)
       (list "dicom dir: "
             (file-name-base
              (directory-file-name
@@ -455,7 +456,7 @@ REUSE can be a buffer name to reuse."
 
 ;;;###autoload
 (defun dicom-auto-mode ()
-  "Enable either `dicom-image-mode' or `dicom-dir-mode' in current buffer."
+  "Enable `dicom-mode' in current buffer."
   (let ((file (expand-file-name buffer-file-name)))
     (setq-local buffer-file-name nil
                 buffer-file-truename nil)
@@ -481,7 +482,7 @@ REUSE can be a buffer name to reuse."
     (and (> (point-max) 133) (equal "DICM" (buffer-substring 129 133))))
   (add-to-list 'magic-mode-alist '(dicom--magic-p . dicom-auto-mode))
   (add-to-list 'auto-mode-alist '("\\.\\(?:dcm\\|ima\\)\\'" . dicom-auto-mode))
-  (add-to-list 'auto-mode-alist '("DICOMDIR\\'" . dicom-auto-mode)))
+  (add-to-list 'auto-mode-alist '("DICOMDIR" . dicom-auto-mode)))
 
 (provide 'dicom)
 ;;; dicom.el ends here
