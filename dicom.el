@@ -72,15 +72,18 @@
   "Field width."
   :type 'natnum)
 
-(defcustom dicom-hidden-fields
+(defcustom dicom-field-filter
   '( SpecificCharacterSet
-     DirectoryRecordType
-     OffsetOfReferencedLowerLevelDirectoryEntity
-     OffsetOfTheNextDirectoryRecord
      RecordInUseFlag
-     PrivateCreator)
+     PrivateCreator
+     FileSetConsistencyFlag
+     FileSetID
+     IconImageSequence
+     "\\`OffsetOf"
+     "UID\\'"
+     " ")
   "List of hidden DICOM properties."
-  :type '(repeat symbol))
+  :type '(repeat (choice string symbol)))
 
 (defcustom dicom-cache-dir (expand-file-name
                             (file-name-concat
@@ -108,9 +111,9 @@ progress:${percent-pos}%%' %s) & disown"
   '((t :inherit header-line :height 1.2 :weight bold))
   "Header line face.")
 
-(defface dicom-item
-  '((t :inherit (header-line outline-2) :extend t))
-  "Item face.")
+(defface dicom-title
+  '((t :inherit header-line :extend t))
+  "Item title face.")
 
 ;;;; Keymaps
 
@@ -232,35 +235,50 @@ progress:${percent-pos}%%' %s) & disown"
         file (file-name-concat dicom-cache-dir (md5 file)))
   (cons (concat file "." ext) (concat file ".tmp." ext)))
 
+(defun dicom--convert-children (dom &optional tag)
+  "Convert children of DOM with TAG."
+  (delq nil (mapcar (lambda (x)
+                      (and (or (not tag) (eq tag (dom-tag x)))
+                           (dicom--convert x)))
+                    (dom-children dom))))
+
+(defun dicom--sort-alist (alist)
+  "Sort ALIST by keys."
+  (sort alist (lambda (x y) (string< (car x) (car y)))))
+
+(defun dicom--convert (dom)
+  "Convert DOM to nested lists."
+  (pcase (dom-tag dom)
+    ((or 'item 'data-set)
+     (nconc (dicom--sort-alist (dicom--convert-children dom 'element))
+            (dicom--sort-alist (dicom--convert-children dom 'sequence))))
+    ('element
+     (when-let ((name (dom-attr dom 'name))
+                ((not (or (equal (dom-attr dom 'loaded) "no")
+                          (equal (dom-attr dom 'binary) "hidden")
+                          (let (case-fold-search)
+                            (string-match-p dicom-field-filter name))))))
+       (cons (intern name) (replace-regexp-in-string
+                            "[ \t\n^]+" " " (dom-text dom)))))
+    ('sequence
+     (when-let ((name (dom-attr dom 'name))
+                ((not (let (case-fold-search)
+                        (string-match-p dicom-field-filter name))))
+                (children (dicom--convert-children dom)))
+       (cons (intern name) children)))))
+
 (defun dicom--read (file)
   "Read DICOM FILE and return list of items."
-  (let ((dom (with-temp-buffer
-               (unless (eq 0 (call-process "dcm2xml" nil t nil
-                                           "--quiet" "--charset-assume"
-                                           "latin-1" "--convert-to-utf8" file))
-                 (error "DICOM: Reading DICOM metadata with dcm2xml failed"))
-               (libxml-parse-xml-region)))
-        (items nil))
-    (dolist (item (append (and (not (dicom--dir-p file))
-                               (dom-by-tag dom 'data-set))
-                          (dom-by-tag dom 'item)))
-      (let (alist (hidden t))
-        (dolist (elem (dom-children item))
-          (let ((name (dom-attr elem 'name)))
-            (unless (or (not (eq (dom-tag elem) 'element))
-                        (equal (dom-attr elem 'loaded) "no")
-                        (equal (dom-attr elem 'binary) "hidden")
-                        (string-search "UID" name)
-                        (string-search " " name))
-              (setq name (intern name))
-              (unless (memq name dicom-hidden-fields)
-                (setq hidden nil))
-              (push (cons name (replace-regexp-in-string
-                                "[ \t\n^]" " " (dom-text elem)))
-                    alist))))
-        (unless hidden
-          (push (sort alist (lambda (x y) (string< (car x) (car y)))) items))))
-    (nreverse items)))
+  (with-temp-buffer
+    (unless (eq 0 (call-process "dcm2xml" nil t nil
+                                "--quiet" "--charset-assume"
+                                "latin-1" "--convert-to-utf8" file))
+      (error "DICOM: Reading DICOM metadata with dcm2xml failed"))
+    (let ((dicom-field-filter (string-join
+                                (mapcar (lambda (x) (format "%s" x))
+                                        dicom-field-filter)
+                                "\\|")))
+      (dicom--convert (dom-child-by-tag (libxml-parse-xml-region) 'data-set)))))
 
 (defun dicom--image-buffer ()
   "Return image buffer or throw an error."
@@ -326,53 +344,62 @@ progress:${percent-pos}%%' %s) & disown"
            'face 'custom-button 'mouse-face 'custom-button-mouse)
           " "))
 
-(defun dicom--insert (item)
-  "Insert ITEM in buffer."
-  (let ((type (alist-get 'DirectoryRecordType item)))
-    (insert "\n" (format
-                  (propertize " %s %s\n" 'face 'dicom-item)
-                  (or type "Item")
-                  (or (and type (or (alist-get 'StudyID item)
-                                    (alist-get 'SeriesDescription item)
-                                    (alist-get 'PatientName item)))
-                      ""))))
-  (pcase-dolist (`(,k . ,v) item)
-    (unless (memq k dicom-hidden-fields)
-      (let* ((k (symbol-name k))
-             (s k))
-        (when (> (length s) dicom-field-width)
-          (setq s (truncate-string-to-width k dicom-field-width 0 nil "…"))
-          (put-text-property 0 (length s) 'help-echo k s))
-        (setq s (string-pad s dicom-field-width))
-        (insert (format "    %s  %s\n" s v))))))
+(defun dicom--title (level title)
+  (insert
+   "\n"
+   (propertize (format " %s %s\n" (make-string level ?*) title)
+               'face (list 'dicom-title (intern (format "outline-%s" level))))))
 
-(defun dicom--insert-all ()
-  "Insert all items into buffer."
-  (dolist (item dicom--data)
-    (let ((pos (point)))
-      (dicom--insert item)
-      (when (equal (alist-get 'DirectoryRecordType item) "IMAGE")
-        (pcase-let* ((src (expand-file-name
-                           (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
-                     (`(,dst . ,tmp) (dicom--cache-name src))
-                     (tooltip (buffer-substring-no-properties (1+ pos) (point))))
-          (delete-region pos (point))
-          (insert (propertize
-                   " " 'display `(image ,@dicom--thumb-placeholder)
-                   'pointer 'hand
-                   'keymap dicom-image-map
-                   'dicom--file src
-                   'help-echo tooltip))
-          (if (file-exists-p dst)
-              (dicom--put-image pos dst)
-            (dicom--enqueue
-             (lambda (success)
-               (if success
-                   (progn
-                     (rename-file tmp dst)
-                     (dicom--put-image pos dst))
-                 (delete-file tmp)))
-             "dcmj2pnm" "--write-png" "--scale-y-size" "200" src tmp)))))))
+(defun dicom--insert (level item)
+  "Insert ITEM at LEVEL in buffer."
+  (let ((type (alist-get 'DirectoryRecordType item))
+        (pos (point)))
+    (dicom--title
+     level
+     (if (= level 1)
+         (if (dicom--dir-p) "DICOM DIR" "DICOM IMAGE")
+       (format "%s %s"
+               (or type "Item")
+               (or (and type (or (alist-get 'StudyID item)
+                                 (alist-get 'SeriesDescription item)
+                                 (alist-get 'PatientName item)))
+                   ""))))
+    (pcase-dolist (`(,k . ,v) item)
+      (cond
+       ((listp v)
+        (let ((level (1+ level)))
+          (dicom--title level k)
+          (dolist (x v) (dicom--insert (1+ level) x))))
+       ((not (eq k 'DirectoryRecordType))
+        (let* ((k (symbol-name k))
+               (s k))
+          (when (> (length s) dicom-field-width)
+            (setq s (truncate-string-to-width k dicom-field-width 0 nil "…"))
+            (put-text-property 0 (length s) 'help-echo k s))
+          (setq s (string-pad s dicom-field-width))
+          (insert (format "    %s  %s\n" s v))))))
+    (when (equal type "IMAGE")
+      (pcase-let* ((src (expand-file-name
+                         (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
+                   (`(,dst . ,tmp) (dicom--cache-name src))
+                   (tooltip (buffer-substring-no-properties (1+ pos) (point))))
+        (delete-region pos (point))
+        (insert (propertize
+                 " " 'display `(image ,@dicom--thumb-placeholder)
+                 'pointer 'hand
+                 'keymap dicom-image-map
+                 'dicom--file src
+                 'help-echo tooltip))
+        (if (file-exists-p dst)
+            (dicom--put-image pos dst)
+          (dicom--enqueue
+           (lambda (success)
+             (if success
+                 (progn
+                   (rename-file tmp dst)
+                   (dicom--put-image pos dst))
+               (delete-file tmp)))
+           "dcmj2pnm" "--write-png" "--scale-y-size" "200" src tmp))))))
 
 (defun dicom--insert-large ()
   "Insert large image."
@@ -382,7 +409,7 @@ progress:${percent-pos}%%' %s) & disown"
     (dicom--button "Larger" #'dicom-larger)
     (dicom--button "Smaller" #'dicom-smaller)
     (dicom--button "Rotate" #'dicom-rotate)
-    (when-let ((frames (alist-get 'NumberOfFrames (car dicom--data))))
+    (when-let ((frames (alist-get 'NumberOfFrames dicom--data)))
       (dicom--button (format "Play (%s frames)" frames) #'dicom-play))
     (insert "\n\n")
     (let ((pos (point)))
@@ -426,7 +453,7 @@ progress:${percent-pos}%%' %s) & disown"
               revert-buffer-function (lambda (&rest _) (dicom--setup file))
               fringe-indicator-alist '((continuation . nil)
                                        (truncation . nil))
-              outline-regexp " [A-Z]"
+              outline-regexp " \\*+"
               outline-minor-mode-cycle t
               outline-minor-mode-use-buttons 'in-margins
               header-line-format
@@ -440,7 +467,7 @@ progress:${percent-pos}%%' %s) & disown"
     (erase-buffer)
     (unless (dicom--dir-p)
       (dicom--insert-large))
-    (dicom--insert-all)
+    (dicom--insert 1 dicom--data)
     (goto-char (point-min))))
 
 (defun dicom--setup (file)
@@ -494,10 +521,10 @@ progress:${percent-pos}%%' %s) & disown"
       (dicom--proc
        (message "Conversion in progress…"))
       (t
-       (unless (alist-get 'NumberOfFrames (car dicom--data))
+       (unless (alist-get 'NumberOfFrames dicom--data)
          (user-error "DICOM: No multi frame image"))
-       (let ((rate (or (alist-get 'RecommendedDisplayFrameRate (car dicom--data))
-                       (alist-get 'CineRate (car dicom--data))
+       (let ((rate (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
+                       (alist-get 'CineRate dicom--data)
                        25))
              dicom-timeout)
          (message "Converting %s…" (abbreviate-file-name dicom--file))
