@@ -347,7 +347,7 @@ progress:${percent-pos}%%' %s) & disown"
 (defun dicom--title (level title)
   "Insert TITLE at LEVEL into buffer."
   (insert
-   "\n"
+   (propertize "\n" 'face '(:height 8))
    (propertize (format " %s %s\n" (make-string level ?*) title)
                'face (list 'dicom-title (intern (format "outline-%s" level))))))
 
@@ -407,14 +407,14 @@ progress:${percent-pos}%%' %s) & disown"
 (defun dicom--insert-large ()
   "Insert large image."
   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file))))
-    (insert "\n")
+    (insert (propertize "\n" 'face '(:height 8)))
     (dicom--button "Revert" #'revert-buffer)
     (dicom--button "Larger" #'dicom-larger)
     (dicom--button "Smaller" #'dicom-smaller)
     (dicom--button "Rotate" #'dicom-rotate)
     (when-let ((frames (alist-get 'NumberOfFrames dicom--data)))
       (dicom--button (format "Play (%s frames)" frames) #'dicom-play))
-    (insert "\n\n")
+    (insert "\n" (propertize "\n" 'face '(:height 8)))
     (let ((pos (point)))
       (insert dicom--large-placeholder "\n")
       (if (file-exists-p dst)
