@@ -6,7 +6,7 @@
 #+html: <a href="https://melpa.org/#/dicom"><img alt="MELPA" src="https://melpa.org/packages/dicom-badge.svg"/></a>
 #+html: <a href="https://stable.melpa.org/#/dicom"><img alt="MELPA Stable" src="https://stable.melpa.org/packages/dicom-badge.svg"/></a>
 
-DICOM files are typically used for medical imaging (US, CT, MRI, PET). This
+DICOM files are typically used for medical imaging (US, CR, CT, MRI, PET). This
 package adds the ability to view such files in Emacs. The images and metadata
 are displayed in regular Emacs buffers. The package registers itself in
 ~auto-mode-alist~ and ~magic-mode-alist~ for DICOMDIR directory files and DICOM
@@ -20,3 +20,9 @@ Linux distributions.
 - ~dcm2xml~ from the dcmtk DICOM toolkit
 - ~ffmpeg~ for video conversion (optional)
 - ~mpv~ for video playing (optional)
+
+* Installation
+
+Dicom.el is available from [[https://elpa.gnu.org/packages/dicom.html][GNU ELPA]]. You can install it directly via ~M-x
+package-install RET dicom RET~. After installation, you can open ~DICOMDIR~ and
+DICOM image files.

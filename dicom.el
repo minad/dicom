@@ -27,8 +27,8 @@
 
 ;;; Commentary:
 
-;; DICOM files are typically used for medical imaging (US, CT, MRI, PET).  This
-;; package adds the ability to view such files in Emacs.  The images and
+;; DICOM files are typically used for medical imaging (US, CR, CT, MRI, PET).
+;; This package adds the ability to view such files in Emacs.  The images and
 ;; metadata are displayed in regular Emacs buffers.  The package registers
 ;; itself in `auto-mode-alist' and `magic-mode-alist' for DICOMDIR directory
 ;; files and DICOM images (file extension *.dcm or *.ima).  Furthermore the
