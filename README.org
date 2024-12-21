@@ -1,4 +1,4 @@
-* dicom.el - DICOM viewer
+* dicom.el - DICOM viewer - Digital Imaging and Communications in Medicine
 
 #+html: <a href="https://www.gnu.org/software/emacs/"><img alt="GNU Emacs" src="https://github.com/minad/corfu/blob/screenshots/emacs.svg?raw=true"/></a>
 #+html: <a href="https://elpa.gnu.org/packages/dicom.html"><img alt="GNU ELPA" src="https://elpa.gnu.org/packages/dicom.svg"/></a>
