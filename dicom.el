@@ -37,17 +37,14 @@
 ;; image files interactively.
 
 ;; Emacs must be compiled with support for PNG, XML and SVG.  The package relies
-;; on a few external programs, which are all widely available on Linux
-;; distributions.
+;; on external programs from the dcmtk DICOM toolkit, which are all widely
+;; available on Linux distributions.
 
-;; - `convert' from the ImageMagick suite
 ;; - `dcm2xml' and `dcmj2pnm' from the dcmtk DICOM toolkit
 ;; - `ffmpeg' for video conversion (optional)
 ;; - `mpv' for video playing (optional)
 
 ;;; Code:
-
-;; TODO Lossless JPEG DICOM cannot be converted by ImageMagick
 
 (require 'compat)
 (require 'dom)
@@ -307,8 +304,7 @@ progress:${percent-pos}%%' %s) & disown"
               (unless (memq name dicom-hidden-fields)
                 (setq hidden nil))
               (push (cons name (replace-regexp-in-string
-                                "\\s-+" " "
-                                (string-replace "^" " " (dom-text elem))))
+                                "[ \t\n^]" " " (dom-text elem)))
                     alist))))
         (unless hidden
           (push (sort alist (lambda (x y) (string< (car x) (car y)))) items))))
@@ -446,7 +442,7 @@ REUSE can be a buffer name to reuse."
                   (dicom-play))
               (delete-file tmp)))
           "sh" "-c"
-          (format "convert %s ppm:- | ffmpeg -framerate %s -i - %s"
+          (format "dcmj2pnm --all-frames --write-bmp %s | ffmpeg -framerate %s -i - %s"
                   (shell-quote-argument dicom--file)
                   rate
                   (shell-quote-argument tmp)))))))))

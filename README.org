@@ -19,19 +19,22 @@ files and DICOM images (file extension *.dcm or *.ima). Furthermore the command
 Dicom.el is available from [[https://elpa.gnu.org/packages/dicom.html][GNU ELPA]]. You can install it directly via ~M-x package-install RET dicom RET~.
 After installation, you can open ~DICOMDIR~ and DICOM image files.
 
-The package relies on a few external programs, which are all widely available on
-Linux distributions.
+The package relies on external programs from the dcmtk DICOM toolkit, which are
+all widely available on Linux distributions.
 
-- ~convert~ from the ImageMagick suite
 - ~dcm2xml~ and ~dcmj2pnm~ from the dcmtk DICOM toolkit
 - ~ffmpeg~ for video conversion (optional)
 - ~mpv~ for video playing (optional)
 
 * Supported files
 
-The DICOM format is quite diverse. Since ~dcm2xml~ from the DICOM toolkit is used
-to read the metadata, most uncorrupted DICOM files can be read. However the
-ImageMagick ~convert~ program cannot handle all images embedded in DICOM files, in
-particular not some lossless JPEG files. Therefore it can happen that the DICOM
-viewer is unable to display such files. Help with improving the image conversion
-process is welcome.
+The DICOM format is quite diverse. Since ~dcm2xml~ tool from the DICOM toolkit is
+used to read the metadata, most uncorrupted DICOM files can be read. It can
+still happen that the DICOM viewer is unable to display files nicely, if the
+metadata records are not interpreted properly. Any help improving the package is
+welcome.
+
+* Contributions
+
+Since this package is part of [[https://elpa.gnu.org/packages/dicom.html][GNU ELPA]] contributions require a copyright
+assignment to the FSF.
