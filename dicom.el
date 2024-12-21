@@ -192,7 +192,7 @@ progress:${percent-pos}%'"
           (delete-region pos (point))
           (insert (propertize
                    " " 'display `(image ,@dicom--thumb-placeholder)
-                   'pointer 'arrow
+                   'pointer 'hand
                    'keymap dicom-image-map
                    'dicom--file src
                    'help-echo tooltip))
@@ -207,18 +207,33 @@ progress:${percent-pos}%'"
                  (delete-file tmp)))
              "convert" src "-delete" "1--1" "-thumbnail" "x200" tmp)))))))
 
+(defun dicom--button (label action)
+  "Insert button with LABEL and ACTION."
+  (insert
+   (propertize
+    (format
+     "  %s %s  "
+     (key-description (where-is-internal action nil t t)) label)
+    'keymap (define-keymap
+              "RET" action
+              "<down-mouse-1>" #'ignore
+              "<mouse-1>" action)
+    'face '( :box (:line-width -2 :style released-button)
+             :background "lightgray" :inherit variable-pitch :height 0.8)
+    'mouse-face '(:box (:line-width -2 :style pressed-button)
+                       :background "gray"))
+   " "))
+
 (defun dicom--insert-large ()
   "Insert large image."
   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file))))
     (insert "\n")
-    (insert-button "+ LARGER" 'action (lambda (_) (dicom-larger 1)))
-    (insert " | ")
-    (insert-button "- SMALLER" 'action (lambda (_) (dicom-smaller 1)))
+    (dicom--button "LARGER" #'dicom-larger)
+    (dicom--button "SMALLER" #'dicom-smaller)
+    (dicom--button "ROTATE" #'dicom-rotate)
     (when-let ((frames (alist-get 'NumberOfFrames (car dicom--data))))
-      (insert " | ")
-      (insert-button (format "p PLAY %s FRAMES" frames)
-                     'action (lambda (_) (dicom-play))))
-    (insert "\n")
+      (dicom--button (format "PLAY %s FRAMES" frames) #'dicom-play))
+    (insert "\n\n")
     (let ((pos (point)))
       (insert dicom--large-placeholder "\n")
       (if (file-exists-p dst)
@@ -433,7 +448,7 @@ REUSE can be a buffer name to reuse."
               header-line-format
               (format (propertize
                        " DICOM %s %s"
-                       'face '(:inherit header-line :height 1.5 :weight bold))
+                       'face '(:inherit header-line :height 1.2 :weight bold))
                       (if (dicom--dir-p) "DIR" "IMAGE")
                       (cadr (dicom--file-name)))))
 
