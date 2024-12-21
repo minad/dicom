@@ -132,6 +132,7 @@ progress:${percent-pos}%'"
 (easy-menu-define dicom-mode-menu dicom-mode-map
   "Menu for `dicom-mode'."
   '("DICOM"
+    ["Revert" revert-buffer]
     ["Larger" dicom-larger]
     ["Smaller" dicom-smaller]
     ["Rotate" dicom-rotate]
@@ -229,6 +230,7 @@ progress:${percent-pos}%'"
   "Insert large image."
   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file))))
     (insert "\n")
+    (dicom--button "REVERT" #'revert-buffer)
     (dicom--button "LARGER" #'dicom-larger)
     (dicom--button "SMALLER" #'dicom-smaller)
     (dicom--button "ROTATE" #'dicom-rotate)
