@@ -161,7 +161,12 @@ progress:${percent-pos}%'"
                       ""))))
   (pcase-dolist (`(,k . ,v) item)
     (unless (memq k dicom--hidden)
-      (insert (format "    %-35s %s\n" k v)))))
+      (let ((k (symbol-name k)))
+        (when (> (length k) 25)
+          (setq k (propertize
+                   (truncate-string-to-width k 25 0 nil "…")
+                   'help-echo k)))
+        (insert (format "    %-25s  %s\n" k v))))))
 
 (defun dicom--read (file)
   "Read DICOM FILE and return list of items."
