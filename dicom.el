@@ -169,7 +169,7 @@ progress:${percent-pos}%'"
                (unless (eq 0 (call-process "dcm2xml" nil t nil
                                            "--quiet" "--charset-assume"
                                            "latin-1" "--convert-to-utf8" file))
-                 (error "Reading DICOM metadata with dcm2xml failed"))
+                 (error "DICOM: Reading DICOM metadata with dcm2xml failed"))
                (libxml-parse-xml-region)))
         (items nil))
     (dolist (item (append (and (not (string-suffix-p "DICOMDIR" file))
@@ -201,7 +201,7 @@ progress:${percent-pos}%'"
                                      'dicom--file)
               (get-text-property (point) 'dicom--file))))
       (dicom-open file (and (not last-prefix-arg) "*dicom image*"))
-    (user-error "No image at point")))
+    (user-error "DICOM: No image at point")))
 
 (defvar-keymap dicom-mode-map
   :doc "Keymap used by `dicom-dir-mode' and `dicom-image-mod'."
@@ -234,7 +234,7 @@ progress:${percent-pos}%'"
   `(with-current-buffer (if (eq major-mode #'dicom-image-mode)
                             (current-buffer)
                           (or (get-buffer "*dicom image*")
-                              (user-error "No open image")))
+                              (user-error "DICOM: No open image")))
      ,@body))
 
 (defun dicom-larger (n)
@@ -274,6 +274,8 @@ REUSE can be a buffer name to reuse."
                                    file)))
          (default-directory (file-name-directory file))
          (buf (or reuse (dicom--buffer-name file))))
+    (unless (file-regular-p file)
+      (user-error "DICOM: File %s not found" file))
     (unless (when-let ((buf (get-buffer buf)))
               (equal (buffer-local-value 'dicom--file buf) file))
       (with-current-buffer (get-buffer-create buf)
@@ -312,7 +314,7 @@ REUSE can be a buffer name to reuse."
        (message "Conversion in progress…"))
       (t
        (unless (alist-get 'NumberOfFrames (car dicom--data))
-         (user-error "No multi frame image"))
+         (user-error "DICOM: No multi frame image"))
        (let ((rate (or (alist-get 'RecommendedDisplayFrameRate (car dicom--data))
                        (alist-get 'CineRate (car dicom--data))
                        25))
@@ -366,7 +368,7 @@ REUSE can be a buffer name to reuse."
               (format (propertize
                        " %s %s"
                        'face '(:inherit header-line :height 1.5 :weight bold))
-                      mode-name (cadr (dicom--shorten dicom--file))))
+                      mode-name (cadr (dicom--file-name))))
   (with-silent-modifications
     (erase-buffer)
     (funcall (intern (format "%s--setup" major-mode)))
@@ -422,8 +424,9 @@ REUSE can be a buffer name to reuse."
   (setq dicom--queue (nreverse dicom--queue))
   (dicom--process-queue))
 
-(defun dicom--shorten (file)
+(defun dicom--file-name (&optional file)
   "Shortened FILE name."
+  (setq file (or file dicom--file))
   (if (string-suffix-p "DICOMDIR" file)
       (list "dicom dir: "
             (file-name-base
@@ -437,7 +440,7 @@ REUSE can be a buffer name to reuse."
 
 (defun dicom--buffer-name (file)
   "Buffer name for FILE."
-  (format "*%s*" (string-join (dicom--shorten file))))
+  (format "*%s*" (string-join (dicom--file-name file))))
 
 ;;;###autoload
 (defun dicom-auto-mode ()
@@ -457,7 +460,7 @@ REUSE can be a buffer name to reuse."
 
 (defun dicom--bookmark-record ()
   "Create DICOM bookmark."
-  `(,(string-join (dicom--shorten dicom--file))
+  `(,(string-join (dicom--file-name))
     (filename . ,dicom--file)
     (handler . ,#'dicom-bookmark-jump)))
 
