@@ -127,7 +127,7 @@ progress:${percent-pos}%'"
 
 (easy-menu-define dicom-mode-menu dicom-mode-map
   "Menu for `dicom-mode'."
-  '("DICOM IMAGE"
+  '("DICOM"
     ["Larger" dicom-larger]
     ["Smaller" dicom-smaller]
     ["Play" dicom-play]))
