@@ -345,13 +345,14 @@ progress:${percent-pos}%%' %s) & disown"
           " "))
 
 (defun dicom--title (level title)
+  "Insert TITLE at LEVEL into buffer."
   (insert
    "\n"
    (propertize (format " %s %s\n" (make-string level ?*) title)
                'face (list 'dicom-title (intern (format "outline-%s" level))))))
 
 (defun dicom--insert (level item)
-  "Insert ITEM at LEVEL in buffer."
+  "Insert ITEM at LEVEL into buffer."
   (let ((type (alist-get 'DirectoryRecordType item))
         (pos (point)))
     (dicom--title
@@ -366,6 +367,8 @@ progress:${percent-pos}%%' %s) & disown"
                    ""))))
     (pcase-dolist (`(,k . ,v) item)
       (cond
+       ((eq k 'DirectoryRecordSequence)
+        (dolist (x v) (dicom--insert (1+ level) x)))
        ((listp v)
         (let ((level (1+ level)))
           (dicom--title level k)
