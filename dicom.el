@@ -217,11 +217,12 @@ progress:${percent-pos}%'"
     'keymap (define-keymap
               "RET" action
               "<down-mouse-1>" #'ignore
-              "<mouse-1>" action)
+              "<mouse-1>" (lambda (_event)
+                            (interactive "@e")
+                            (call-interactively action)))
     'face '( :box (:line-width -2 :style released-button)
-             :background "lightgray" :inherit variable-pitch :height 0.8)
-    'mouse-face '(:box (:line-width -2 :style pressed-button)
-                       :background "gray"))
+             :inherit variable-pitch :height 0.8)
+    'mouse-face '(:box (:line-width -2 :style pressed-button)))
    " "))
 
 (defun dicom--insert-large ()
