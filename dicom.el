@@ -123,25 +123,6 @@ progress:${percent-pos}%'"
     (put-text-property pos (1+ pos) 'display
                        `(image :margin 8 :type png :file ,file))))
 
-(defun dicom--async (cb &rest args)
-  "Run process with ARGS asynchronously and call CB when the process finished."
-  (let ((default-directory "/"))
-    (setq dicom--proc
-          (make-process
-           :name "dicom"
-           :command args
-           :noquery t
-           :filter #'ignore
-           :sentinel
-           (let ((buf (current-buffer)))
-             (lambda (_proc event)
-               (when (buffer-live-p buf)
-                 (with-current-buffer buf
-                   (setq dicom--proc nil)
-                   (funcall cb (string-prefix-p "finished" event))))))))
-    (when dicom--timeout
-      (run-at-time dicom--timeout nil #'dicom--stop dicom--proc))))
-
 (defun dicom--cache-name (file &optional ext)
   "Cache file name given FILE name and EXT."
   (make-directory dicom--cache-dir t)
@@ -289,20 +270,38 @@ REUSE can be a buffer name to reuse."
         (display-buffer buf)
       (pop-to-buffer buf))))
 
-(defun dicom--process-queue ()
+(defun dicom--run (cb &rest args)
+  "Run process with ARGS asynchronously and call CB when the process finished."
+  (let ((default-directory "/"))
+    (setq dicom--proc
+          (make-process
+           :name "dicom"
+           :command args
+           :noquery t
+           :filter #'ignore
+           :sentinel
+           (let ((buf (current-buffer)))
+             (lambda (_proc event)
+               (when (buffer-live-p buf)
+                 (with-current-buffer buf
+                   (setq dicom--proc nil)
+                   (funcall cb (string-prefix-p "finished" event))
+                   (dicom--process)))))))
+    (when dicom--timeout
+      (run-at-time dicom--timeout nil #'dicom--stop dicom--proc))))
+
+(defun dicom--enqueue (&rest job)
+  "Enqueue conversion JOB."
+  (push job dicom--queue)
+  (unless dicom--proc (dicom--process)))
+
+(defun dicom--process ()
   "Process conversion queue."
   (setq mode-line-process (and dicom--queue
                                (format "[%d]" (length dicom--queue))))
-  (pcase (pop dicom--queue)
-    (`(,pos ,dst ,tmp ,src)
-     (dicom--async (lambda (success)
-                     (if success
-                         (progn
-                           (rename-file tmp dst)
-                           (dicom--put-image pos dst))
-                       (delete-file tmp))
-                     (dicom--process-queue))
-                   "convert" src "-delete" "1--1" "-thumbnail" "x200" tmp))))
+  (when-let ((job (car (last dicom--queue))))
+    (setq dicom--queue (nbutlast dicom--queue))
+    (apply #'dicom--run job)))
 
 (defun dicom-play ()
   "Play DICOM multi frame image."
@@ -325,17 +324,18 @@ REUSE can be a buffer name to reuse."
                        25))
              dicom--timeout)
          (message "Converting %s…" dicom--file)
-         (dicom--async (lambda (success)
-                         (if success
-                             (progn
-                               (rename-file tmp dst)
-                               (dicom-play))
-                           (delete-file tmp)))
-                       "sh" "-c"
-                       (format "convert %s ppm:- | ffmpeg -framerate %s -i - %s"
-                               (shell-quote-argument dicom--file)
-                               rate
-                               (shell-quote-argument tmp)))))))))
+         (dicom--enqueue
+          (lambda (success)
+            (if success
+                (progn
+                  (rename-file tmp dst)
+                  (dicom-play))
+              (delete-file tmp)))
+          "sh" "-c"
+          (format "convert %s ppm:- | ffmpeg -framerate %s -i - %s"
+                  (shell-quote-argument dicom--file)
+                  rate
+                  (shell-quote-argument tmp)))))))))
 
 (defun dicom--setup (file)
   "Setup buffer for FILE."
@@ -398,13 +398,14 @@ REUSE can be a buffer name to reuse."
     (mapc #'dicom--insert dicom--data)
     (if (file-exists-p dst)
         (dicom--put-image pos dst)
-      (dicom--async (lambda (success)
-                      (if success
-                          (progn
-                            (rename-file tmp dst)
-                            (dicom--put-image pos dst))
-                        (delete-file tmp)))
-                    "convert" dicom--file "-delete" "1--1" tmp))))
+      (dicom--enqueue
+       (lambda (success)
+         (if success
+             (progn
+               (rename-file tmp dst)
+               (dicom--put-image pos dst))
+           (delete-file tmp)))
+       "convert" dicom--file "-delete" "1--1" tmp))))
 
 (defun dicom-dir-mode--setup ()
   "Setup `dicom-dir-mode' buffer."
@@ -425,9 +426,14 @@ REUSE can be a buffer name to reuse."
                    'help-echo tooltip))
           (if (file-exists-p dst)
               (dicom--put-image pos dst)
-            (push (list pos dst tmp src) dicom--queue))))))
-  (setq dicom--queue (nreverse dicom--queue))
-  (dicom--process-queue))
+            (dicom--enqueue
+             (lambda (success)
+               (if success
+                   (progn
+                     (rename-file tmp dst)
+                     (dicom--put-image pos dst))
+                 (delete-file tmp)))
+             "convert" src "-delete" "1--1" "-thumbnail" "x200" tmp)))))))
 
 (defun dicom--file-name (&optional file)
   "Shortened FILE name."
