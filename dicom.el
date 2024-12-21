@@ -457,7 +457,7 @@ REUSE can be a buffer name to reuse."
     (dolist (type '(png svg))
       (unless (image-type-available-p type)
         (push (format "lib%s" type) req)))
-    (dolist (exe '("dcm2xml" "dcmj2pnm" "convert"))
+    (dolist (exe '("dcm2xml" "dcmj2pnm"))
       (unless (executable-find exe)
         (push exe req)))
     (when req
