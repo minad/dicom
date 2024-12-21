@@ -78,8 +78,8 @@ progress:${percent-pos}%'"
 (defvar dicom--timeout 3
   "Timeout for conversion.")
 
-(defvar-local dicom--rate nil
-  "Frame rate of image.")
+(defvar-local dicom--data nil
+  "DICOM data of the current buffer.")
 
 (defvar-local dicom--file nil
   "DICOM file associated with the current buffer.")
@@ -295,8 +295,6 @@ REUSE can be a buffer name to reuse."
   "Play DICOM multi frame image."
   (interactive nil dicom-dir-mode dicom-image-mode)
   (dicom--image-buffer
-   (unless dicom--rate
-     (user-error "No multi frame image"))
    (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
      (cond
       ((file-exists-p dst)
@@ -307,8 +305,13 @@ REUSE can be a buffer name to reuse."
       (dicom--proc
        (message "Conversion in progress…"))
       (t
-       (message "Converting %s…" dicom--file)
-       (let (dicom--timeout)
+       (unless (alist-get 'NumberOfFrames (car dicom--data))
+         (user-error "No multi frame image"))
+       (let ((rate (or (alist-get 'RecommendedDisplayFrameRate (car dicom--data))
+                       (alist-get 'CineRate (car dicom--data))
+                       25))
+             dicom--timeout)
+         (message "Converting %s…" dicom--file)
          (dicom--async (lambda (success)
                          (if success
                              (progn
@@ -318,7 +321,7 @@ REUSE can be a buffer name to reuse."
                        "sh" "-c"
                        (format "convert %s ppm:- | ffmpeg -framerate %s -i - %s"
                                (shell-quote-argument dicom--file)
-                               dicom--rate
+                               rate
                                (shell-quote-argument tmp)))))))))
 
 (defun dicom--setup (file)
@@ -328,6 +331,7 @@ REUSE can be a buffer name to reuse."
   (setq-local dicom--queue nil
               dicom--proc nil
               dicom--file file
+              dicom--data (dicom--read file)
               buffer-read-only t
               truncate-lines nil
               bookmark-make-record-function #'dicom--bookmark-record
@@ -351,23 +355,19 @@ REUSE can be a buffer name to reuse."
 (defun dicom-image-mode--setup ()
   "Setup `dicom-image-mode' buffer."
   (pcase-let* ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
-               (data (dicom--read dicom--file))
                (pos nil))
     (insert "\n")
     (insert-button "+ LARGER" 'action (lambda (_) (dicom-larger 1)))
     (insert " | ")
     (insert-button "- SMALLER" 'action (lambda (_) (dicom-smaller 1)))
-    (when-let ((frames (alist-get 'NumberOfFrames (car data))))
-      (setq dicom--rate (or (alist-get 'RecommendedDisplayFrameRate (car data))
-                            (alist-get 'CineRate (car data))
-                            25))
+    (when-let ((frames (alist-get 'NumberOfFrames (car dicom--data))))
       (insert " | ")
       (insert-button (format "p PLAY %s FRAMES" frames)
                      'action (lambda (_) (dicom-play))))
     (insert "\n")
     (setq pos (point))
     (insert dicom--large-placeholder "\n")
-    (mapc #'dicom--insert data)
+    (mapc #'dicom--insert dicom--data)
     (if (file-exists-p dst)
         (dicom--put-image pos dst)
       (dicom--async (lambda (success)
@@ -380,7 +380,7 @@ REUSE can be a buffer name to reuse."
 
 (defun dicom-dir-mode--setup ()
   "Setup `dicom-dir-mode' buffer."
-  (dolist (item (dicom--read dicom--file))
+  (dolist (item dicom--data)
     (let ((type (alist-get 'DirectoryRecordType item))
           (pos (point)))
       (dicom--insert item)
