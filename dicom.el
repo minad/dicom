@@ -40,9 +40,9 @@
 ;; distributions.
 
 ;; - `convert' from the ImageMagick suite
-;; - `ffmpeg' for video conversion
 ;; - `dcm2xml' from the dcmtk DICOM toolkit
-;; - `mpv' for video playing
+;; - `ffmpeg' for video conversion (optional)
+;; - `mpv' for video playing (optional)
 
 ;;; Code:
 
@@ -332,6 +332,21 @@ REUSE can be a buffer name to reuse."
 
 (defun dicom--setup (file)
   "Setup buffer for FILE."
+  (let (req)
+    (unless (display-graphic-p)
+      (push "graphical display" req))
+    (unless (image-type-available-p 'png)
+      (push "libpng" req))
+    (unless (image-type-available-p 'svg)
+      (push "libsvg" req))
+    (unless (libxml-available-p)
+      (push "libxml" req))
+    (unless (executable-find "dcm2xml")
+      (push "dcm2xml" req))
+    (unless (executable-find "convert")
+      (push "convert" req))
+    (when req
+      (error "DICOM: %s required to proceed" (string-join req ", "))))
   (dicom--stop dicom--proc)
   (if (string-suffix-p "DICOMDIR" file) (dicom-dir-mode) (dicom-image-mode))
   (setq-local dicom--queue nil
