@@ -52,6 +52,7 @@
 (require 'compat)
 (require 'dom)
 (require 'outline)
+(require 'image)
 (eval-when-compile (require 'subr-x))
 
 (defvar dicom--hidden '( SpecificCharacterSet
@@ -102,6 +103,7 @@ progress:${percent-pos}%'"
 (defconst dicom--large-placeholder
   (propertize
    " "
+   'dicom--image t
    'pointer 'arrow
    'display
    '(image :margin 8 :type svg :width 800 :height 600
@@ -123,6 +125,7 @@ progress:${percent-pos}%'"
   "p" #'dicom-play
   "+" #'dicom-larger
   "-" #'dicom-smaller
+  "r" #'dicom-rotate
   "TAB" #'outline-cycle
   "<backtab>" #'outline-cycle-buffer)
 
@@ -268,24 +271,37 @@ progress:${percent-pos}%'"
       (dicom-open file (and (not last-prefix-arg) "*dicom image*"))
     (user-error "DICOM: No image at point")))
 
-(defmacro dicom--image-buffer (&rest body)
-  "Run BODY inside image buffer if it exists."
-  `(with-current-buffer (if (dicom--dir-p)
-                            (or (get-buffer "*dicom image*")
-                                (user-error "DICOM: No open image"))
-                          (current-buffer))
-     ,@body))
+(defun dicom--image-buffer ()
+  "Return image buffer or throw an error."
+  (if (dicom--dir-p)
+      (or (get-buffer "*dicom image*")
+          (user-error "DICOM: No open image"))
+    (current-buffer)))
+
+(defun dicom-rotate ()
+  "Rotate image."
+  (interactive nil dicom-mode)
+  (dicom--modify-image
+   (lambda (image)
+     (setf (image-property image :rotation)
+           (float (mod (+ (or (image-property image :rotation) 0) 90) 360))))))
+
+(defun dicom--modify-image (fun)
+  "Modify image properties by FUN."
+  (with-current-buffer (dicom--image-buffer)
+   (when-let ((pos (text-property-not-all (point-min) (point-max) 'dicom--image nil))
+              (image (get-text-property pos 'display)))
+     (with-silent-modifications
+       (funcall fun image)
+       (put-text-property pos (1+ pos) 'display `(image ,@(cdr image)))))))
 
 (defun dicom-larger (n)
   "Image larger by N."
   (interactive "p" dicom-mode)
-  (dicom--image-buffer
-   (when-let ((pos (text-property-not-all (point-min) (point-max) 'display nil))
-              (image (cdr (get-text-property pos 'display))))
-     (setf (plist-get image :scale)
-           (max 0.1 (min 10 (+ (* n 0.1) (or (plist-get image :scale) 1.0)))))
-     (with-silent-modifications
-       (put-text-property pos (1+ pos) 'display `(image ,@image))))))
+  (dicom--modify-image
+   (lambda (image)
+     (setf (image-property image :scale)
+           (max 0.1 (min 10 (+ (* n 0.1) (or (image-property image :scale) 1.0))))))))
 
 (defun dicom-smaller (n)
   "Image smaller by N."
@@ -347,7 +363,7 @@ REUSE can be a buffer name to reuse."
 (defun dicom-play ()
   "Play DICOM multi frame image."
   (interactive nil dicom-mode)
-  (dicom--image-buffer
+  (with-current-buffer (dicom--image-buffer)
    (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
      (cond
       ((file-exists-p dst)
