@@ -134,6 +134,7 @@ progress:${percent-pos}%'"
   '("DICOM"
     ["Larger" dicom-larger]
     ["Smaller" dicom-smaller]
+    ["Rotate" dicom-rotate]
     ["Play" dicom-play]))
 
 (define-derived-mode dicom-mode special-mode "DICOM"
