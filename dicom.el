@@ -47,7 +47,6 @@
 ;;; Code:
 
 ;; TODO Lossless JPEG DICOM cannot be converted by ImageMagick
-;; TODO Menu
 
 (require 'compat)
 (require 'dom)
@@ -222,6 +221,13 @@ progress:${percent-pos}%'"
 (defvar-keymap dicom-image-mode-map
   :doc "Keymap used by `dicom-image-mode'."
   :parent dicom-mode-map)
+
+(easy-menu-define dicom-image-mode-menu dicom-image-mode-map
+  "Menu for `dicom-image-mode'."
+  '("DICOM IMAGE"
+    ["Larger" dicom-larger]
+    ["Smaller" dicom-smaller]
+    ["Play" dicom-play]))
 
 (defmacro dicom--image-buffer (&rest body)
   "Run BODY inside image buffer if it exists."
