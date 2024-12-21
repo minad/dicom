@@ -554,7 +554,7 @@ REUSE can be a buffer name to reuse."
 ;;;###autoload
 (progn
   (defun dicom--magic-p ()
-    (and (> (point-max) 133) (equal "DICM" (buffer-substring 129 133))))
+    (save-excursion (goto-char 129) (looking-at-p "DICM")))
   (add-to-list 'magic-mode-alist '(dicom--magic-p . dicom-auto-mode))
   (add-to-list 'auto-mode-alist '("\\.\\(?:dcm\\|ima\\)\\'" . dicom-auto-mode))
   (add-to-list 'auto-mode-alist '("DICOMDIR" . dicom-auto-mode)))
