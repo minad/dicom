@@ -259,17 +259,19 @@ progress:${percent-pos}%'"
           (push (sort alist (lambda (x y) (string< (car x) (car y)))) items))))
     (nreverse items)))
 
+;;;###autoload
 (defun dicom-open-at-point ()
-  "Open image at point."
-  (declare (completion ignore))
+  "Open DICOM at point."
   (interactive)
   (if-let ((file
             (if (mouse-event-p last-input-event)
-                (mouse-posn-property (event-start last-input-event)
-                                     'dicom--file)
-              (get-text-property (point) 'dicom--file))))
+                (or (mouse-posn-property (event-start last-input-event)
+                                         'dicom--file)
+                    (thing-at-mouse last-input-event 'filename))
+              (or (get-text-property (point) 'dicom--file)
+                  (thing-at-point 'filename)))))
       (dicom-open file (and (not last-prefix-arg) "*dicom image*"))
-    (user-error "DICOM: No image at point")))
+    (user-error "DICOM: No DICOM file at point")))
 
 (defun dicom--image-buffer ()
   "Return image buffer or throw an error."
@@ -279,7 +281,7 @@ progress:${percent-pos}%'"
     (current-buffer)))
 
 (defun dicom-rotate ()
-  "Rotate image."
+  "Rotate image by 90°."
   (interactive nil dicom-mode)
   (dicom--modify-image
    (lambda (image)
