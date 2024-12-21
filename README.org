@@ -17,6 +17,6 @@ The package relies on a few external programs, which are all widely available on
 Linux distributions.
 
 - ~convert~ from the ImageMagick suite
-- ~ffmpeg~ for video conversion
 - ~dcm2xml~ from the dcmtk DICOM toolkit
-- ~mpv~ for video playing
+- ~ffmpeg~ for video conversion (optional)
+- ~mpv~ for video playing (optional)
