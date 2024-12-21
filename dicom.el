@@ -162,9 +162,9 @@ progress:${percent-pos}%%' %s) & disown"
 (defconst dicom--thumb-placeholder
   '( :margin 8 :type svg :width 267 :height 200
      :data "<svg xmlns='http://www.w3.org/2000/svg' width='267' height='200'>
-  <rect width='267' height='200' fill='black' stroke='gray' stroke-width='1'/>
-  <line x1='0' y1='0' x2='267' y2='200' stroke='gray' stroke-width='1'/>
-  <line x1='0' y1='200' x2='267' y2='0' stroke='gray' stroke-width='1'/>
+  <rect width='267' height='200' fill='black' stroke='gray'/>
+  <line x1='0' y1='0' x2='267' y2='200' stroke='gray'/>
+  <line x1='0' y1='200' x2='267' y2='0' stroke='gray'/>
 </svg>")
   "Thumbnail placeholder image.")
 
@@ -176,9 +176,9 @@ progress:${percent-pos}%%' %s) & disown"
    'display
    '(image :margin 8 :type svg :width 800 :height 600
            :data "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'>
-  <rect width='800' height='600' fill='black' stroke='gray' stroke-width='1'/>
-  <line x1='0' y1='0' x2='800' y2='600' stroke='gray' stroke-width='1'/>
-  <line x1='0' y1='600' x2='800' y2='0' stroke='gray' stroke-width='1'/>
+  <rect width='800' height='600' fill='black' stroke='gray'/>
+  <line x1='0' y1='0' x2='800' y2='600' stroke='gray'/>
+  <line x1='0' y1='600' x2='800' y2='0' stroke='gray'/>
 </svg>"))
   "Large placeholder image.")
 
