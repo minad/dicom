@@ -393,14 +393,18 @@ REUSE can be a buffer name to reuse."
     (unless (executable-find "convert")
       (push "convert" req))
     (when req
+      (kill-buffer)
       (error "DICOM: %s required to proceed" (string-join req ", ")))))
 
 (defun dicom--setup-locals (file)
   "Initialize buffer locals for FILE."
+  (unwind-protect
+      (setq-local dicom--data (dicom--read file))
+    (unless dicom--data
+      (kill-buffer)))
   (setq-local dicom--queue nil
               dicom--proc nil
               dicom--file file
-              dicom--data (dicom--read file)
               buffer-read-only t
               truncate-lines nil
               bookmark-make-record-function #'dicom--bookmark-record
