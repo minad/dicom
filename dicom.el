@@ -346,74 +346,85 @@ progress:${percent-pos}%%' %s) & disown"
 
 (defun dicom--title (level title)
   "Insert TITLE at LEVEL into buffer."
+  (unless (or (bobp) (eq (char-before) ?\n))
+    (insert "\n"))
   (insert
-   (propertize "\n" 'face '(:height 8))
-   (propertize (format " %s %s\n" (make-string level ?*) title)
-               'face (list 'dicom-title (intern (format "outline-%s" level))))))
+   (propertize
+    (format "%s %s\n"
+            (propertize (make-string level ?*) 'invisible t)
+            title)
+    'face (list 'dicom-title (intern (format "outline-%s" level))))))
 
-(defun dicom--insert (level item)
+(defun dicom--thumb (level item)
+  "Insert ITEM with thumbnail at LEVEL into buffer."
+  (pcase-let* ((src (expand-file-name
+                     (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
+               (`(,dst . ,tmp) (dicom--cache-name src))
+               (pos (point))
+               (tooltip (progn
+                          (dicom--item level item "")
+                          (buffer-substring-no-properties pos (point)))))
+    (delete-region pos (point))
+    (insert (propertize
+             " " 'display `(image ,@dicom--thumb-placeholder)
+             'pointer 'hand
+             'keymap dicom-image-map
+             'dicom--file src
+             'help-echo tooltip))
+    (if (file-exists-p dst)
+        (dicom--put-image pos dst)
+      (dicom--enqueue
+       (lambda (success)
+         (if success
+             (progn
+               (rename-file tmp dst)
+               (dicom--put-image pos dst))
+           (delete-file tmp)))
+       "dcmj2pnm" "--write-png" "--scale-y-size" "200" src tmp))))
+
+(defun dicom--item (level item &optional indent)
   "Insert ITEM at LEVEL into buffer."
-  (let ((type (alist-get 'DirectoryRecordType item))
-        (pos (point)))
-    (dicom--title
-     level
-     (if (= level 1)
-         (if (dicom--dir-p) "DICOM DIR" "DICOM IMAGE")
-       (format "%s %s"
-               (or type "Item")
-               (or (and type (or (alist-get 'StudyID item)
-                                 (alist-get 'SeriesDescription item)
-                                 (alist-get 'PatientName item)))
-                   ""))))
-    (pcase-dolist (`(,k . ,v) item)
-      (cond
-       ((eq k 'DirectoryRecordSequence)
-        (dolist (x v) (dicom--insert (1+ level) x)))
-       ((listp v)
-        (let ((level (1+ level)))
-          (dicom--title level k)
-          (dolist (x v) (dicom--insert (1+ level) x))))
-       ((not (eq k 'DirectoryRecordType))
-        (let* ((k (symbol-name k))
-               (s k))
-          (when (> (length s) dicom-field-width)
-            (setq s (truncate-string-to-width k dicom-field-width 0 nil "…"))
-            (put-text-property 0 (length s) 'help-echo k s))
-          (setq s (string-pad s dicom-field-width))
-          (insert (format "    %s  %s\n" s v))))))
-    (when (equal type "IMAGE")
-      (pcase-let* ((src (expand-file-name
-                         (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
-                   (`(,dst . ,tmp) (dicom--cache-name src))
-                   (tooltip (buffer-substring-no-properties (1+ pos) (point))))
-        (delete-region pos (point))
-        (insert (propertize
-                 " " 'display `(image ,@dicom--thumb-placeholder)
-                 'pointer 'hand
-                 'keymap dicom-image-map
-                 'dicom--file src
-                 'help-echo tooltip))
-        (if (file-exists-p dst)
-            (dicom--put-image pos dst)
-          (dicom--enqueue
-           (lambda (success)
-             (if success
-                 (progn
-                   (rename-file tmp dst)
-                   (dicom--put-image pos dst))
-               (delete-file tmp)))
-           "dcmj2pnm" "--write-png" "--scale-y-size" "200" src tmp))))))
+  (pcase-dolist (`(,k . ,v) item)
+    (cond
+     ((eq k 'DirectoryRecordSequence)
+      (dolist (item v)
+        (let ((type (alist-get 'DirectoryRecordType item)))
+          (if (equal type "IMAGE")
+              (dicom--thumb level item)
+            (dicom--title level
+                          (format "%s %s" type
+                                  (or (alist-get 'StudyDescription item)
+                                      (alist-get 'SeriesDescription item)
+                                      (alist-get 'PatientName item)
+                                      "")))
+            (dicom--item level item)))))
+     ((listp v)
+      (let ((level (1+ level)))
+        (dicom--title level k)
+        (if (length= v 1)
+            (dicom--item level (car v))
+          (dolist (item v)
+            (dicom--title (1+ level) "ITEM")
+            (dicom--item (1+ level) item)))))
+     ((not (eq k 'DirectoryRecordType))
+      (let* ((k (symbol-name k))
+             (s k))
+        (when (> (length s) dicom-field-width)
+          (setq s (truncate-string-to-width k dicom-field-width 0 nil "…"))
+          (put-text-property 0 (length s) 'help-echo k s))
+        (setq s (string-pad s dicom-field-width))
+        (insert (or indent "    ") s "  " v "\n"))))))
 
-(defun dicom--insert-large ()
+(defun dicom--image ()
   "Insert large image."
-  (insert (propertize "\n" 'face '(:height 16)))
+  (insert (propertize "\n" 'face '(:height 0.2)))
   (dicom--button "Revert" #'revert-buffer)
   (dicom--button "Larger" #'dicom-larger)
   (dicom--button "Smaller" #'dicom-smaller)
   (dicom--button "Rotate" #'dicom-rotate)
   (when-let ((frames (alist-get 'NumberOfFrames dicom--data)))
     (dicom--button (format "Play (%s frames)" frames) #'dicom-play))
-  (insert "\n" (propertize "\n" 'face '(:height 8)))
+  (insert "\n" (propertize "\n" 'face '(:height 0.2)))
   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
               (pos (point)))
     (insert dicom--large-placeholder "\n")
@@ -456,7 +467,7 @@ progress:${percent-pos}%%' %s) & disown"
               revert-buffer-function (lambda (&rest _) (dicom--setup file))
               fringe-indicator-alist '((continuation . nil)
                                        (truncation . nil))
-              outline-regexp " \\*+"
+              outline-regexp "\\*+"
               outline-minor-mode-cycle t
               outline-minor-mode-use-buttons 'in-margins
               header-line-format
@@ -469,8 +480,9 @@ progress:${percent-pos}%%' %s) & disown"
   (with-silent-modifications
     (erase-buffer)
     (unless (dicom--dir-p)
-      (dicom--insert-large))
-    (dicom--insert 1 dicom--data)
+      (dicom--image)
+      (dicom--title 1 "IMAGE"))
+    (dicom--item 1 dicom--data)
     (goto-char (point-min))))
 
 (defun dicom--setup (file)
