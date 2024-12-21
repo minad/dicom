@@ -14,6 +14,8 @@ registers itself in ~auto-mode-alist~ and ~magic-mode-alist~ for DICOMDIR direct
 files and DICOM images (file extension *.dcm or *.ima). Furthermore the command
 ~dicom-open~ opens DICOMDIR directory files or DICOM image files interactively.
 
+#+html: <img src="https://github.com/minad/dicom/blob/screenshots/screenshot.png?raw=true">
+
 * Installation
 
 Dicom.el is available from [[https://elpa.gnu.org/packages/dicom.html][GNU ELPA]]. You can install it directly via ~M-x package-install RET dicom RET~.
