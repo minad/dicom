@@ -361,7 +361,7 @@ progress:${percent-pos}%%' %s) & disown"
          (if (dicom--dir-p) "DICOM DIR" "DICOM IMAGE")
        (format "%s %s"
                (or type "Item")
-               (or (and type (or (alist-get 'StudyID item)
+               (or (and nil type (or (alist-get 'StudyID item)
                                  (alist-get 'SeriesDescription item)
                                  (alist-get 'PatientName item)))
                    ""))))
@@ -380,7 +380,10 @@ progress:${percent-pos}%%' %s) & disown"
             (setq s (truncate-string-to-width k dicom-field-width 0 nil "…"))
             (put-text-property 0 (length s) 'help-echo k s))
           (setq s (string-pad s dicom-field-width))
-          (insert (format "    %s  %s\n" s v))))))
+          (insert (format "    %s  %s\n" s
+                          ;;v
+                          "*****"
+                          ))))))
     (when (equal type "IMAGE")
       (pcase-let* ((src (expand-file-name
                          (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
