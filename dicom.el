@@ -41,7 +41,7 @@
 ;; distributions.
 
 ;; - `convert' from the ImageMagick suite
-;; - `dcm2xml' from the dcmtk DICOM toolkit
+;; - `dcm2xml' and `dcmj2pnm' from the dcmtk DICOM toolkit
 ;; - `ffmpeg' for video conversion (optional)
 ;; - `mpv' for video playing (optional)
 
@@ -242,7 +242,7 @@ progress:${percent-pos}%%' %s) & disown"
                      (rename-file tmp dst)
                      (dicom--put-image pos dst))
                  (delete-file tmp)))
-             "convert" src "-delete" "1--1" "-thumbnail" "x200" tmp)))))))
+             "dcmj2pnm" "--write-png" "--scale-y-size" "200" src tmp)))))))
 
 (defun dicom--button (label action)
   "Insert button with LABEL and ACTION."
@@ -281,7 +281,7 @@ progress:${percent-pos}%%' %s) & disown"
                (rename-file tmp dst)
                (dicom--put-image pos dst))
            (delete-file tmp)))
-       "convert" dicom--file "-delete" "1--1" tmp)))))
+       "dcmj2pnm" "--write-png" dicom--file tmp)))))
 
 (defun dicom--read (file)
   "Read DICOM FILE and return list of items."
@@ -453,16 +453,14 @@ REUSE can be a buffer name to reuse."
   (let (req)
     (unless (display-graphic-p)
       (push "graphical display" req))
-    (unless (image-type-available-p 'png)
-      (push "libpng" req))
-    (unless (image-type-available-p 'svg)
-      (push "libsvg" req))
     (unless (libxml-available-p)
       (push "libxml" req))
-    (unless (executable-find "dcm2xml")
-      (push "dcm2xml" req))
-    (unless (executable-find "convert")
-      (push "convert" req))
+    (dolist (type '(png svg))
+      (unless (image-type-available-p type)
+        (push (format "lib%s" type) req)))
+    (dolist (exe '("dcm2xml" "dcmj2pnm" "convert"))
+      (unless (executable-find exe)
+        (push exe req)))
     (when req
       (error "DICOM: %s required to proceed" (string-join req ", ")))))
 
