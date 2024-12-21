@@ -306,7 +306,10 @@ progress:${percent-pos}%%' %s) & disown"
               (setq name (intern name))
               (unless (memq name dicom-hidden-fields)
                 (setq hidden nil))
-              (push (cons name (string-replace "^" " " (dom-text elem))) alist))))
+              (push (cons name (replace-regexp-in-string
+                                "\\s-+" " "
+                                (string-replace "^" " " (dom-text elem))))
+                    alist))))
         (unless hidden
           (push (sort alist (lambda (x y) (string< (car x) (car y)))) items))))
     (nreverse items)))
