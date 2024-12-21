@@ -393,18 +393,14 @@ REUSE can be a buffer name to reuse."
     (unless (executable-find "convert")
       (push "convert" req))
     (when req
-      (kill-buffer)
       (error "DICOM: %s required to proceed" (string-join req ", ")))))
 
 (defun dicom--setup-locals (file)
   "Initialize buffer locals for FILE."
-  (unwind-protect
-      (setq-local dicom--data (dicom--read file))
-    (unless dicom--data
-      (kill-buffer)))
   (setq-local dicom--queue nil
               dicom--proc nil
               dicom--file file
+              dicom--data (dicom--read file)
               buffer-read-only t
               truncate-lines nil
               bookmark-make-record-function #'dicom--bookmark-record
@@ -421,19 +417,28 @@ REUSE can be a buffer name to reuse."
                       (if (dicom--dir-p) "DIR" "IMAGE")
                       (cadr (dicom--file-name)))))
 
-(defun dicom--setup (file)
-  "Setup buffer for FILE."
-  (dicom--setup-check)
-  (dicom--stop dicom--proc)
-  (dicom-mode)
-  (dicom--setup-locals file)
+(defun dicom--setup-content ()
+  "Setup buffer content."
   (with-silent-modifications
     (erase-buffer)
     (unless (dicom--dir-p)
       (dicom--insert-large))
     (dicom--insert-all)
-    (goto-char (point-min))
-    (outline-minor-mode)))
+    (goto-char (point-min))))
+
+(defun dicom--setup (file)
+  "Setup buffer for FILE."
+  (condition-case err
+      (progn
+        (dicom--setup-check)
+        (dicom--stop dicom--proc)
+        (dicom-mode)
+        (dicom--setup-locals file)
+        (dicom--setup-content)
+        (outline-minor-mode))
+    (error
+     (kill-buffer)
+     (signal (car err) (cdr err)))))
 
 (defun dicom--dir-p (&optional file)
   "Non-nil if FILE is a DICOMDIR."
