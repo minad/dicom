@@ -53,31 +53,63 @@
 (require 'dom)
 (require 'outline)
 (require 'image)
-(eval-when-compile (require 'subr-x))
+(require 'cus-edit)
+(require 'subr-x)
 
-(defvar dicom--hidden '( SpecificCharacterSet
-                         DirectoryRecordType
-                         OffsetOfReferencedLowerLevelDirectoryEntity
-                         OffsetOfTheNextDirectoryRecord
-                         RecordInUseFlag
-                         PrivateCreator)
-  "List of hidden DICOM properties.")
+(defgroup dicom nil
+  "DICOM viewer - Digital Imaging and Communications in Medicine."
+  :link '(info-link :tag "Info Manual" "(dicom)")
+  :link '(url-link :tag "Website" "https://github.com/minad/dicom")
+  :link '(emacs-library-link :tag "Library Source" "dicom.el")
+  :group 'files
+  :group 'multimedia
+  :prefix "dicom-")
 
-(defvar dicom--cache-dir (expand-file-name
-                          (file-name-concat
-                           (or (getenv "XDG_CACHE_HOME") "~/.cache/")
-                           "emacs/dicom/"))
-  "Cache directory for converted images.")
+(defcustom dicom-timeout 3
+  "Timeout for conversion."
+  :type 'natnum)
 
-(defvar dicom--mpv-args
-  "--loop --osd-font-size=16 --osd-margin-x=0 --osd-margin-y=0 --osd-level=3 \
+(defcustom dicom-field-width 25
+  "Field width."
+  :type 'natnum)
+
+(defcustom dicom-hidden-fields
+  '( SpecificCharacterSet
+     DirectoryRecordType
+     OffsetOfReferencedLowerLevelDirectoryEntity
+     OffsetOfTheNextDirectoryRecord
+     RecordInUseFlag
+     PrivateCreator)
+  "List of hidden DICOM properties."
+  :type '(repeat symbol))
+
+(defcustom dicom-cache-dir (expand-file-name
+                            (file-name-concat
+                             (or (getenv "XDG_CACHE_HOME") "~/.cache/")
+                             "emacs/dicom/"))
+  "Cache directory for converted images."
+  :type 'string)
+
+(defcustom dicom-play-command
+  "(mpv --loop --osd-font-size=16 --osd-margin-x=0 --osd-margin-y=0 --osd-level=3 \
 --osd-status-msg='fps:${container-fps} \
 frame:${estimated-frame-number}/${estimated-frame-count} \
-progress:${percent-pos}%'"
-  "MPV command line arguments.")
+progress:${percent-pos}%%' %s) & disown"
+  "Video player command line."
+  :type 'string)
 
-(defvar dicom--timeout 3
-  "Timeout for conversion.")
+(defgroup dicom-faces nil
+  "Faces used by DICOM."
+  :group 'dicom
+  :group 'faces)
+
+(defface dicom-header
+  '((t :inherit header-line :height 1.2 :weight bold))
+  "Header line face.")
+
+(defface dicom-item
+  '((t :inherit (header-line outline-2) :extend t))
+  "Item face.")
 
 (defvar-local dicom--data nil
   "DICOM data of the current buffer.")
@@ -156,29 +188,30 @@ progress:${percent-pos}%'"
 
 (defun dicom--cache-name (file &optional ext)
   "Cache file name given FILE name and EXT."
-  (make-directory dicom--cache-dir t)
+  (make-directory dicom-cache-dir t)
   (setq ext (or ext "png")
-        file (file-name-concat dicom--cache-dir (md5 file)))
+        file (file-name-concat dicom-cache-dir (md5 file)))
   (cons (concat file "." ext) (concat file ".tmp." ext)))
 
 (defun dicom--insert (item)
   "Insert ITEM in buffer."
   (let ((type (alist-get 'DirectoryRecordType item)))
     (insert "\n" (format
-                  (propertize " %s %s\n" 'face '(:inherit (header-line outline-2) :extend t))
+                  (propertize " %s %s\n" 'face 'dicom-item)
                   (or type "Item")
                   (or (and type (or (alist-get 'StudyID item)
                                     (alist-get 'SeriesDescription item)
                                     (alist-get 'PatientName item)))
                       ""))))
   (pcase-dolist (`(,k . ,v) item)
-    (unless (memq k dicom--hidden)
-      (let ((k (symbol-name k)))
-        (when (> (length k) 25)
-          (setq k (propertize
-                   (truncate-string-to-width k 25 0 nil "…")
-                   'help-echo k)))
-        (insert (format "    %-25s  %s\n" k v))))))
+    (unless (memq k dicom-hidden-fields)
+      (let* ((k (symbol-name k))
+             (s k))
+        (when (> (length s) dicom-field-width)
+          (setq s (truncate-string-to-width k dicom-field-width 0 nil "…"))
+          (put-text-property 0 (length s) 'help-echo k s))
+        (setq s (string-pad s dicom-field-width))
+        (insert (format "    %s  %s\n" s v))))))
 
 (defun dicom--insert-all ()
   "Insert all items into buffer."
@@ -210,32 +243,29 @@ progress:${percent-pos}%'"
 
 (defun dicom--button (label action)
   "Insert button with LABEL and ACTION."
-  (insert
-   (propertize
-    (format
-     "  %s %s  "
-     (key-description (where-is-internal action nil t t)) label)
-    'keymap (define-keymap
-              "RET" action
-              "<down-mouse-1>" #'ignore
-              "<mouse-1>" (lambda (_event)
-                            (interactive "@e")
-                            (call-interactively action)))
-    'face '( :box (:line-width -2 :style released-button)
-             :inherit variable-pitch :height 0.8)
-    'mouse-face '(:box (:line-width -2 :style pressed-button)))
-   " "))
+  (insert (propertize
+           (format
+            "  %s %s  "
+            (key-description (where-is-internal action nil t t)) label)
+           'keymap (define-keymap
+                     "RET" action
+                     "<down-mouse-1>" #'ignore
+                     "<mouse-1>" (lambda (_event)
+                                   (interactive "@e")
+                                   (call-interactively action)))
+           'face 'custom-button 'mouse-face 'custom-button-mouse)
+          " "))
 
 (defun dicom--insert-large ()
   "Insert large image."
   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file))))
     (insert "\n")
-    (dicom--button "REVERT" #'revert-buffer)
-    (dicom--button "LARGER" #'dicom-larger)
-    (dicom--button "SMALLER" #'dicom-smaller)
-    (dicom--button "ROTATE" #'dicom-rotate)
+    (dicom--button "Revert" #'revert-buffer)
+    (dicom--button "Larger" #'dicom-larger)
+    (dicom--button "Smaller" #'dicom-smaller)
+    (dicom--button "Rotate" #'dicom-rotate)
     (when-let ((frames (alist-get 'NumberOfFrames (car dicom--data))))
-      (dicom--button (format "PLAY %s FRAMES" frames) #'dicom-play))
+      (dicom--button (format "Play (%s frames)" frames) #'dicom-play))
     (insert "\n\n")
     (let ((pos (point)))
       (insert dicom--large-placeholder "\n")
@@ -271,7 +301,7 @@ progress:${percent-pos}%'"
                         (string-search "UID" name)
                         (string-search " " name))
               (setq name (intern name))
-              (unless (memq name dicom--hidden)
+              (unless (memq name dicom-hidden-fields)
                 (setq hidden nil))
               (push (cons name (string-replace "^" " " (dom-text elem))) alist))))
         (unless hidden
@@ -365,8 +395,8 @@ REUSE can be a buffer name to reuse."
                    (setq dicom--proc nil)
                    (funcall cb (string-prefix-p "finished" event))
                    (dicom--process)))))))
-    (when dicom--timeout
-      (run-at-time dicom--timeout nil #'dicom--stop dicom--proc))))
+    (when dicom-timeout
+      (run-at-time dicom-timeout nil #'dicom--stop dicom--proc))))
 
 (defun dicom--enqueue (&rest job)
   "Enqueue conversion JOB."
@@ -390,7 +420,7 @@ REUSE can be a buffer name to reuse."
       ((file-exists-p dst)
        (message "Playing %s…" dicom--file)
        (call-process-shell-command
-        (format "(mpv %s %s) & disown" dicom--mpv-args (shell-quote-argument dst))
+        (format dicom-play-command (shell-quote-argument dst))
         nil 0))
       (dicom--proc
        (message "Conversion in progress…"))
@@ -400,7 +430,7 @@ REUSE can be a buffer name to reuse."
        (let ((rate (or (alist-get 'RecommendedDisplayFrameRate (car dicom--data))
                        (alist-get 'CineRate (car dicom--data))
                        25))
-             dicom--timeout)
+             dicom-timeout)
          (message "Converting %s…" dicom--file)
          (dicom--enqueue
           (lambda (success)
@@ -449,9 +479,7 @@ REUSE can be a buffer name to reuse."
               outline-minor-mode-cycle t
               outline-minor-mode-use-buttons 'in-margins
               header-line-format
-              (format (propertize
-                       " DICOM %s %s"
-                       'face '(:inherit header-line :height 1.2 :weight bold))
+              (format (propertize " DICOM %s %s" 'face 'dicom-header)
                       (if (dicom--dir-p) "DIR" "IMAGE")
                       (cadr (dicom--file-name)))))
 
