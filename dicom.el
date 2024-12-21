@@ -168,7 +168,10 @@ progress:${percent-pos}%%' %s) & disown"
     ["Larger" dicom-larger]
     ["Smaller" dicom-smaller]
     ["Rotate" dicom-rotate]
-    ["Play" dicom-play]))
+    ["Play" dicom-play]
+    "--"
+    ["Manual" (info "(dicom)")]
+    ["Customize" (customize-group 'dicom)]))
 
 (define-derived-mode dicom-mode special-mode "DICOM"
   "DICOM mode."
