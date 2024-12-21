@@ -30,9 +30,10 @@
 ;; DICOM files are typically used for medical imaging (US, CT, MRI, PET).  This
 ;; package adds the ability to view such files in Emacs.  The images and
 ;; metadata are displayed in regular Emacs buffers.  The package registers
-;; itself in `auto-mode-alist' for DICOMDIR directory files and DICOM images
-;; (file extension *.dcm or *.ima).  Furthermore the command `dicom-open' opens
-;; DICOMDIR directory files or DICOM image files interactively.
+;; itself in `auto-mode-alist' and `magic-mode-alist' for DICOMDIR directory
+;; files and DICOM images (file extension *.dcm or *.ima).  Furthermore the
+;; command `dicom-open' opens DICOMDIR directory files or DICOM image files
+;; interactively.
 
 ;; Emacs must be compiled with support for PNG, XML and SVG.  The package relies
 ;; on a few external programs, which are all widely available on Linux
@@ -46,6 +47,7 @@
 ;;; Code:
 
 ;; TODO Lossless JPEG DICOM cannot be converted by ImageMagick
+;; TODO Menu
 
 (require 'compat)
 (require 'dom)
@@ -426,12 +428,6 @@ REUSE can be a buffer name to reuse."
     (dicom--setup file)))
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.\\(?:dcm\\|ima\\)\\'" . dicom-auto-mode))
-
-;;;###autoload
-(add-to-list 'auto-mode-alist '("DICOMDIR\\'" . dicom-auto-mode))
-
-;;;###autoload
 (defun dicom-bookmark-jump (bm)
   "Jump to DICOM bookmark BM."
   (declare-function bookmark-get-filename "bookmark")
@@ -443,6 +439,14 @@ REUSE can be a buffer name to reuse."
   `(,(string-join (dicom--shorten dicom--file))
     (filename . ,dicom--file)
     (handler . ,#'dicom-bookmark-jump)))
+
+;;;###autoload
+(progn
+  (defun dicom--magic-p ()
+    (and (> (point-max) 133) (equal "DICM" (buffer-substring 129 133))))
+  (add-to-list 'magic-mode-alist '(dicom--magic-p . dicom-auto-mode))
+  (add-to-list 'auto-mode-alist '("\\.\\(?:dcm\\|ima\\)\\'" . dicom-auto-mode))
+  (add-to-list 'auto-mode-alist '("DICOMDIR\\'" . dicom-auto-mode)))
 
 (provide 'dicom)
 ;;; dicom.el ends here
