@@ -23,6 +23,14 @@ Linux distributions.
 
 * Installation
 
-Dicom.el is available from [[https://elpa.gnu.org/packages/dicom.html][GNU ELPA]]. You can install it directly via ~M-x
-package-install RET dicom RET~. After installation, you can open ~DICOMDIR~ and
-DICOM image files.
+Dicom.el is available from [[https://elpa.gnu.org/packages/dicom.html][GNU ELPA]]. You can install it directly via ~M-x package-install RET dicom RET~.
+After installation, you can open ~DICOMDIR~ and DICOM image files.
+
+* Supported files
+
+The DICOM format is quite diverse. Since ~dcm2xml~ from the DICOM toolkit is used
+to read the metadata, most uncorrupted DICOM files can be read. However the
+ImageMagick ~convert~ program cannot handle all images embedded in DICOM files, in
+particular not some lossless JPEG files. Therefore it can happen that the DICOM
+viewer is unable to display such files. Help with improving the image conversion
+process is welcome.
