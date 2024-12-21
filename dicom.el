@@ -36,7 +36,7 @@
 ;; Furthermore the command `dicom-open' opens DICOMDIR directory files or DICOM
 ;; image files interactively.
 
-;; Emacs must be compiled with support for PNG, XML and SVG.  The package relies
+;; Emacs must be compiled with support for PNG, SVG and XML.  The package relies
 ;; on external programs from the dcmtk DICOM toolkit, which are all widely
 ;; available on Linux distributions.
 

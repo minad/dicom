@@ -19,8 +19,9 @@ files and DICOM images (file extension *.dcm or *.ima). Furthermore the command
 Dicom.el is available from [[https://elpa.gnu.org/packages/dicom.html][GNU ELPA]]. You can install it directly via ~M-x package-install RET dicom RET~.
 After installation, you can open ~DICOMDIR~ and DICOM image files.
 
-The package relies on external programs from the dcmtk DICOM toolkit, which are
-all widely available on Linux distributions.
+Emacs must be compiled with support for PNG, SVG and XML. The package relies on
+external programs from the dcmtk DICOM toolkit, which are all widely available
+on Linux distributions.
 
 - ~dcm2xml~ and ~dcmj2pnm~ from the dcmtk DICOM toolkit
 - ~ffmpeg~ for video conversion (optional)
