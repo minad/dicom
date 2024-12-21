@@ -487,7 +487,7 @@ progress:${percent-pos}%%' %s) & disown"
    (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
      (cond
       ((file-exists-p dst)
-       (message "Playing %s…" dicom--file)
+       (message "Playing %s…" (abbreviate-file-name dicom--file))
        (call-process-shell-command
         (format dicom-play-command (shell-quote-argument dst))
         nil 0))
@@ -500,7 +500,7 @@ progress:${percent-pos}%%' %s) & disown"
                        (alist-get 'CineRate (car dicom--data))
                        25))
              dicom-timeout)
-         (message "Converting %s…" dicom--file)
+         (message "Converting %s…" (abbreviate-file-name dicom--file))
          (dicom--enqueue
           (lambda (success)
             (if success
