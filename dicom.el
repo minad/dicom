@@ -89,8 +89,8 @@ The list elements are either symbols or regular expressions."
   :type 'string)
 
 (defcustom dicom-play-command
-  "(mpv --loop --osd-font-size=16 --osd-margin-x=0 --osd-margin-y=0 --osd-level=3 \
---osd-status-msg='fps:${container-fps} \
+  "(mpv --loop --osd-font-size=16 --osd-margin-x=0 --osd-margin-y=0
+--osd-level=3 --osd-status-msg='fps:${container-fps} \
 frame:${estimated-frame-number}/${estimated-frame-count} \
 progress:${percent-pos}%%' %s) & disown"
   "Video player command line."
@@ -181,11 +181,9 @@ progress:${percent-pos}%%' %s) & disown"
     (ignore-errors (signal-process proc 'TERM))
     (run-at-time 1 nil (lambda () (ignore-errors (delete-process proc))))))
 
-(defun dicom--put-image (pos file)
-  "Display image FILE at POS."
-  (with-silent-modifications
-    (put-text-property pos (1+ pos) 'display
-                       `(image :margin 8 :type png :file ,file))))
+(defun dicom--image-desc (file)
+  "Image descriptor for FILE."
+  `(image :margin 8 :type png :file ,file))
 
 (defun dicom--dir-p (&optional file)
   "Non-nil if FILE is a DICOMDIR."
@@ -257,9 +255,9 @@ progress:${percent-pos}%%' %s) & disown"
                                 "latin-1" "--convert-to-utf8" file))
       (error "DICOM: Reading DICOM metadata with dcm2xml failed"))
     (let ((dicom-field-filter (string-join
-                                (mapcar (lambda (x) (format "%s" x))
-                                        dicom-field-filter)
-                                "\\|")))
+                               (mapcar (lambda (x) (format "%s" x))
+                                       dicom-field-filter)
+                               "\\|")))
       (dicom--convert (dom-child-by-tag (libxml-parse-xml-region) 'data-set)))))
 
 (defun dicom--image-buffer ()
@@ -272,11 +270,11 @@ progress:${percent-pos}%%' %s) & disown"
 (defun dicom--modify-image (fun)
   "Modify image properties by FUN."
   (with-current-buffer (dicom--image-buffer)
-   (when-let ((pos (text-property-not-all (point-min) (point-max) 'dicom--image nil))
-              (image (get-text-property pos 'display)))
-     (with-silent-modifications
-       (funcall fun image)
-       (put-text-property pos (1+ pos) 'display `(image ,@(cdr image)))))))
+    (when-let ((pos (text-property-not-all (point-min) (point-max) 'dicom--image nil))
+               (image (get-text-property pos 'display)))
+      (with-silent-modifications
+        (funcall fun image)
+        (put-text-property pos (1+ pos) 'display `(image ,@(cdr image)))))))
 
 (defun dicom--run (cb &rest args)
   "Run process with ARGS asynchronously and call CB when the process finished."
@@ -337,31 +335,36 @@ progress:${percent-pos}%%' %s) & disown"
             title)
     'face (list 'dicom-title (intern (format "outline-%s" level))))))
 
+(defun dicom--image-callback (tmp dst pos)
+  "Job callback closure with TMP, DST and POS."
+  (lambda (success)
+    (if success
+        (with-silent-modifications
+          (rename-file tmp dst)
+          (put-text-property pos (1+ pos) 'display (dicom--image-desc dst)))
+      (delete-file tmp))))
+
 (defun dicom--thumb (level item)
   "Insert ITEM with thumbnail at LEVEL into buffer."
   (pcase-let* ((src (expand-file-name
                      (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
                (`(,dst . ,tmp) (dicom--cache-name src))
+               (exists (file-exists-p dst))
                (pos (point))
                (tooltip (progn
                           (dicom--item level item "")
                           (buffer-substring-no-properties pos (point)))))
     (delete-region pos (point))
     (insert (propertize
-             " " 'display `(image ,@dicom--thumb)
+             " "
+             'display (if exists (dicom--image-desc dst) `(image ,@dicom--thumb))
              'pointer 'hand
              'keymap dicom-image-map
              'dicom--file src
              'help-echo tooltip))
-    (if (file-exists-p dst)
-        (dicom--put-image pos dst)
+    (unless exists
       (dicom--enqueue
-       (lambda (success)
-         (if success
-             (progn
-               (rename-file tmp dst)
-               (dicom--put-image pos dst))
-           (delete-file tmp)))
+       (dicom--image-callback tmp dst pos)
        "dcmj2pnm" "--write-png" "--scale-y-size" "200" src tmp))))
 
 (defun dicom--item (level item &optional indent)
@@ -399,20 +402,15 @@ progress:${percent-pos}%%' %s) & disown"
 
 (defun dicom--placeholder (w h)
   "Placeholder image with W and H."
-  (propertize
-   " "
-   'dicom--image t
-   'pointer 'arrow
-   'display
-   `(image
-     :margin 8 :type svg :width ,w :height ,h
-     :data
-     ,(format
-       "<svg xmlns='http://www.w3.org/2000/svg' width='%1$s' height='%2$s'>
+  `(image
+    :margin 8 :type svg :width ,w :height ,h
+    :data
+    ,(format
+      "<svg xmlns='http://www.w3.org/2000/svg' width='%1$s' height='%2$s'>
   <rect width='%1$s' height='%2$s' fill='black' stroke='gray'/>
   <line x1='0' y1='0' x2='%1$s' y2='%2$s' stroke='gray'/>
   <line x1='0' y1='%2$s' x2='%1$s' y2='0' stroke='gray'/>
-</svg>" w h))))
+</svg>" w h)))
 
 (defun dicom--image ()
   "Insert large image."
@@ -424,21 +422,22 @@ progress:${percent-pos}%%' %s) & disown"
   (when-let ((frames (alist-get 'NumberOfFrames dicom--data)))
     (dicom--button (format "Play (%s frames)" frames) #'dicom-play))
   (insert "\n" (propertize "\n" 'face '(:height 0.2)))
-  (pcase-let ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
-              (pos (point)))
-    (insert (dicom--placeholder
-             (alist-get 'Columns dicom--data 800)
-             (alist-get 'Rows dicom--data 600))
+  (pcase-let* ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
+               (exists (file-exists-p dst))
+               (pos (point)))
+    (insert (propertize
+             " "
+             'dicom--image t
+             'pointer 'arrow
+             'display (if exists
+                          (dicom--image-desc dst)
+                        (dicom--placeholder
+                         (alist-get 'Columns dicom--data 800)
+                         (alist-get 'Rows dicom--data 600))))
             "\n")
-    (if (file-exists-p dst)
-        (dicom--put-image pos dst)
+    (unless exists
       (dicom--enqueue
-       (lambda (success)
-         (if success
-             (progn
-               (rename-file tmp dst)
-               (dicom--put-image pos dst))
-           (delete-file tmp)))
+       (dicom--image-callback tmp dst pos)
        "dcmj2pnm" "--write-png" dicom--file tmp))))
 
 (defun dicom--setup-check ()
@@ -528,35 +527,35 @@ progress:${percent-pos}%%' %s) & disown"
   "Play DICOM multi frame image."
   (interactive nil dicom-mode)
   (with-current-buffer (dicom--image-buffer)
-   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
-     (cond
-      ((file-exists-p dst)
-       (message "Playing %s…" (abbreviate-file-name dicom--file))
-       (call-process-shell-command
-        (format dicom-play-command (shell-quote-argument dst))
-        nil 0))
-      (dicom--proc
-       (message "Conversion in progress…"))
-      (t
-       (unless (alist-get 'NumberOfFrames dicom--data)
-         (user-error "DICOM: No multi frame image"))
-       (let ((rate (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
-                       (alist-get 'CineRate dicom--data)
-                       25))
-             dicom-timeout)
-         (message "Converting %s…" (abbreviate-file-name dicom--file))
-         (dicom--enqueue
-          (lambda (success)
-            (if success
-                (progn
-                  (rename-file tmp dst)
-                  (dicom-play))
-              (delete-file tmp)))
-          "sh" "-c"
-          (format "dcmj2pnm --all-frames --write-bmp %s | ffmpeg -framerate %s -i - %s"
-                  (shell-quote-argument dicom--file)
-                  rate
-                  (shell-quote-argument tmp)))))))))
+    (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
+      (cond
+       ((file-exists-p dst)
+        (message "Playing %s…" (abbreviate-file-name dicom--file))
+        (call-process-shell-command
+         (format dicom-play-command (shell-quote-argument dst))
+         nil 0))
+       (dicom--proc
+        (message "Conversion in progress…"))
+       (t
+        (unless (alist-get 'NumberOfFrames dicom--data)
+          (user-error "DICOM: No multi frame image"))
+        (message "Converting %s…" (abbreviate-file-name dicom--file))
+        (let (dicom-timeout)
+          (dicom--enqueue
+           (lambda (success)
+             (if success
+                 (progn
+                   (rename-file tmp dst)
+                   (dicom-play))
+               (delete-file tmp)))
+           "sh" "-c"
+           (format
+            "dcmj2pnm --all-frames --write-bmp %s | ffmpeg -framerate %s -i - %s"
+            (shell-quote-argument dicom--file)
+            (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
+                (alist-get 'CineRate dicom--data)
+                25)
+            (shell-quote-argument tmp)))))))))
 
 ;;;###autoload
 (defun dicom-open-at-point ()
