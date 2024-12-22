@@ -73,16 +73,16 @@
   "Number of parallel conversion processes."
   :type 'natnum)
 
-(defcustom dicom-field-width 25
-  "Field width."
+(defcustom dicom-attribute-width 25
+  "Attribute name width."
   :type 'natnum)
 
-(defcustom dicom-field-filter
+(defcustom dicom-attribute-filter
   '( FileSetConsistencyFlag FileSetID
      IconImageSequence PrivateCreator
      RecordInUseFlag SpecificCharacterSet
      "\\`OffsetOf" "UID" " ")
-  "Hidden DICOM properties.
+  "Hidden DICOM attributes.
 The list elements are either symbols or regular expressions."
   :type '(repeat (choice string symbol)))
 
@@ -242,13 +242,13 @@ progress:${percent-pos}%%' %s) & disown"
                 ((not (or (equal (dom-attr dom 'loaded) "no")
                           (equal (dom-attr dom 'binary) "hidden")
                           (let (case-fold-search)
-                            (string-match-p dicom-field-filter name))))))
+                            (string-match-p dicom-attribute-filter name))))))
        (cons (intern name) (replace-regexp-in-string
                             "[ \t\n^]+" " " (dom-text dom)))))
     ('sequence
      (when-let ((name (dom-attr dom 'name))
                 ((not (let (case-fold-search)
-                        (string-match-p dicom-field-filter name))))
+                        (string-match-p dicom-attribute-filter name))))
                 (children (dicom--convert-children dom)))
        (cons (intern name) children)))))
 
@@ -259,9 +259,9 @@ progress:${percent-pos}%%' %s) & disown"
                                 "--quiet" "--charset-assume"
                                 "latin-1" "--convert-to-utf8" file))
       (error "DICOM: Reading DICOM metadata with dcm2xml failed"))
-    (let ((dicom-field-filter (string-join
+    (let ((dicom-attribute-filter (string-join
                                (mapcar (lambda (x) (format "%s" x))
-                                       dicom-field-filter)
+                                       dicom-attribute-filter)
                                "\\|")))
       (dicom--convert (dom-child-by-tag (libxml-parse-xml-region) 'data-set)))))
 
@@ -401,10 +401,10 @@ progress:${percent-pos}%%' %s) & disown"
      ((not (eq k 'DirectoryRecordType))
       (let* ((k (symbol-name k))
              (s k))
-        (when (> (length s) dicom-field-width)
-          (setq s (truncate-string-to-width k dicom-field-width 0 nil "…"))
+        (when (> (length s) dicom-attribute-width)
+          (setq s (truncate-string-to-width k dicom-attribute-width 0 nil "…"))
           (put-text-property 0 (length s) 'help-echo k s))
-        (setq s (string-pad s dicom-field-width))
+        (setq s (string-pad s dicom-attribute-width))
         (insert (or indent "    ") s "  " v "\n"))))))
 
 (defun dicom--placeholder (w h)
