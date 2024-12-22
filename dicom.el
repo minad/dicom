@@ -158,7 +158,7 @@ progress:${percent-pos}%%' %s) & disown"
 (defvar-local dicom--proc nil
   "Active conversion process in current buffer.")
 
-(defconst dicom--thumb-placeholder
+(defconst dicom--thumb
   '( :margin 8 :type svg :width 267 :height 200
      :data "<svg xmlns='http://www.w3.org/2000/svg' width='267' height='200'>
   <rect width='267' height='200' fill='black' stroke='gray'/>
@@ -166,20 +166,6 @@ progress:${percent-pos}%%' %s) & disown"
   <line x1='0' y1='200' x2='267' y2='0' stroke='gray'/>
 </svg>")
   "Thumbnail placeholder image.")
-
-(defconst dicom--large-placeholder
-  (propertize
-   " "
-   'dicom--image t
-   'pointer 'arrow
-   'display
-   '(image :margin 8 :type svg :width 800 :height 600
-           :data "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'>
-  <rect width='800' height='600' fill='black' stroke='gray'/>
-  <line x1='0' y1='0' x2='800' y2='600' stroke='gray'/>
-  <line x1='0' y1='600' x2='800' y2='0' stroke='gray'/>
-</svg>"))
-  "Large placeholder image.")
 
 ;;;; Internal functions
 
@@ -362,7 +348,7 @@ progress:${percent-pos}%%' %s) & disown"
                           (buffer-substring-no-properties pos (point)))))
     (delete-region pos (point))
     (insert (propertize
-             " " 'display `(image ,@dicom--thumb-placeholder)
+             " " 'display `(image ,@dicom--thumb)
              'pointer 'hand
              'keymap dicom-image-map
              'dicom--file src
@@ -411,6 +397,23 @@ progress:${percent-pos}%%' %s) & disown"
         (setq s (string-pad s dicom-field-width))
         (insert (or indent "    ") s "  " v "\n"))))))
 
+(defun dicom--placeholder (w h)
+  "Placeholder image with W and H."
+  (propertize
+   " "
+   'dicom--image t
+   'pointer 'arrow
+   'display
+   `(image
+     :margin 8 :type svg :width ,w :height ,h
+     :data
+     ,(format
+       "<svg xmlns='http://www.w3.org/2000/svg' width='%1$s' height='%2$s'>
+  <rect width='%1$s' height='%2$s' fill='black' stroke='gray'/>
+  <line x1='0' y1='0' x2='%1$s' y2='%2$s' stroke='gray'/>
+  <line x1='0' y1='%2$s' x2='%1$s' y2='0' stroke='gray'/>
+</svg>" w h))))
+
 (defun dicom--image ()
   "Insert large image."
   (insert (propertize "\n" 'face '(:height 0.2)))
@@ -423,7 +426,10 @@ progress:${percent-pos}%%' %s) & disown"
   (insert "\n" (propertize "\n" 'face '(:height 0.2)))
   (pcase-let ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
               (pos (point)))
-    (insert dicom--large-placeholder "\n")
+    (insert (dicom--placeholder
+             (alist-get 'Columns dicom--data 800)
+             (alist-get 'Rows dicom--data 600))
+            "\n")
     (if (file-exists-p dst)
         (dicom--put-image pos dst)
       (dicom--enqueue
