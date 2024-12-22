@@ -52,6 +52,7 @@
 (require 'image)
 (require 'cus-edit)
 (require 'subr-x)
+(eval-when-compile (require 'cl-lib))
 
 ;;;; Customization
 
@@ -66,6 +67,10 @@
 
 (defcustom dicom-timeout 3
   "Timeout for conversion."
+  :type 'natnum)
+
+(defcustom dicom-parallel (num-processors)
+  "Number of parallel conversion processes."
   :type 'natnum)
 
 (defcustom dicom-field-width 25
@@ -89,7 +94,7 @@ The list elements are either symbols or regular expressions."
   :type 'string)
 
 (defcustom dicom-play-command
-  "(mpv --loop --osd-font-size=16 --osd-margin-x=0 --osd-margin-y=0
+  "(mpv --loop --osd-font-size=16 --osd-margin-x=0 --osd-margin-y=0 \
 --osd-level=3 --osd-status-msg='fps:${container-fps} \
 frame:${estimated-frame-number}/${estimated-frame-count} \
 progress:${percent-pos}%%' %s) & disown"
@@ -155,8 +160,8 @@ progress:${percent-pos}%%' %s) & disown"
 (defvar-local dicom--queue nil
   "Conversion process queue in current buffer.")
 
-(defvar-local dicom--proc nil
-  "Active conversion process in current buffer.")
+(defvar-local dicom--procs nil
+  "Active conversion processes in current buffer.")
 
 (defconst dicom--thumb
   '( :margin 8 :type svg :width 267 :height 200
@@ -279,27 +284,28 @@ progress:${percent-pos}%%' %s) & disown"
 (defun dicom--run (cb &rest args)
   "Run process with ARGS asynchronously and call CB when the process finished."
   (let ((default-directory "/"))
-    (setq dicom--proc
-          (make-process
+    (push (make-process
            :name "dicom"
            :command args
            :noquery t
            :filter #'ignore
            :sentinel
            (let ((buf (current-buffer)))
-             (lambda (_proc event)
+             (lambda (proc event)
                (when (buffer-live-p buf)
                  (with-current-buffer buf
-                   (setq dicom--proc nil)
+                   (cl-callf2 delq proc dicom--procs)
                    (funcall cb (string-prefix-p "finished" event))
-                   (dicom--process)))))))
+                   (dicom--process))))))
+          dicom--procs)
     (when dicom-timeout
-      (run-at-time dicom-timeout nil #'dicom--stop dicom--proc))))
+      (run-at-time dicom-timeout nil #'dicom--stop (car dicom--procs)))))
 
 (defun dicom--enqueue (&rest job)
   "Enqueue conversion JOB."
   (push job dicom--queue)
-  (unless dicom--proc (dicom--process)))
+  (when (length< dicom--procs dicom-parallel)
+    (dicom--process)))
 
 (defun dicom--process ()
   "Process conversion queue."
@@ -459,7 +465,7 @@ progress:${percent-pos}%%' %s) & disown"
 (defun dicom--setup-locals (file)
   "Initialize buffer locals for FILE."
   (setq-local dicom--queue nil
-              dicom--proc nil
+              dicom--procs nil
               dicom--file file
               dicom--data (dicom--read file)
               buffer-read-only t
@@ -491,7 +497,7 @@ progress:${percent-pos}%%' %s) & disown"
   (condition-case err
       (progn
         (dicom--setup-check)
-        (dicom--stop dicom--proc)
+        (mapc #'dicom--stop dicom--procs)
         (dicom-mode)
         (dicom--setup-locals file)
         (dicom--setup-content)
@@ -534,7 +540,7 @@ progress:${percent-pos}%%' %s) & disown"
         (call-process-shell-command
          (format dicom-play-command (shell-quote-argument dst))
          nil 0))
-       (dicom--proc
+       (dicom--procs
         (message "Conversion in progress…"))
        (t
         (unless (alist-get 'NumberOfFrames dicom--data)
