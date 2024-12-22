@@ -622,5 +622,20 @@ REUSE can be a buffer name to reuse."
   (add-to-list 'auto-mode-alist '("\\.\\(?:dcm\\|ima\\)\\'" . dicom-auto-mode))
   (add-to-list 'auto-mode-alist '("DICOMDIR" . dicom-auto-mode)))
 
+;;;###autoload
+(funcall 'eval-after-load 'ol
+  (lambda ()
+    (declare-function org-link-set-parameters "ol")
+    (declare-function org-link-store-props "ol")
+    (org-link-set-parameters
+     "dicom"
+     :follow (lambda (link _) (dicom-open link))
+     :store
+     (lambda ()
+       (when (eq major-mode 'dicom-mode)
+         (org-link-store-props
+          :type "dicom"
+          :link (concat "dicom:" (abbreviate-file-name dicom--file))))))))
+
 (provide 'dicom)
 ;;; dicom.el ends here
