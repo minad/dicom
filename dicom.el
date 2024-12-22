@@ -625,6 +625,7 @@ REUSE can be a buffer name to reuse."
 ;;;###autoload
 (funcall 'eval-after-load 'ol
   (lambda ()
+    (defvar dicom--file)
     (declare-function org-link-set-parameters "ol")
     (declare-function org-link-store-props "ol")
     (org-link-set-parameters
