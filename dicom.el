@@ -278,6 +278,7 @@ progress:${percent-pos}%%' %s) & disown"
     (when-let ((pos (text-property-not-all (point-min) (point-max) 'dicom--image nil))
                (image (get-text-property pos 'display)))
       (with-silent-modifications
+        (goto-char pos)
         (funcall fun image)
         (put-text-property pos (1+ pos) 'display `(image ,@(cdr image)))))))
 
