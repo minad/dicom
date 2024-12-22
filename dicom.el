@@ -73,16 +73,12 @@
   :type 'natnum)
 
 (defcustom dicom-field-filter
-  '( SpecificCharacterSet
-     RecordInUseFlag
-     PrivateCreator
-     FileSetConsistencyFlag
-     FileSetID
-     IconImageSequence
-     "\\`OffsetOf"
-     "UID\\'"
-     " ")
-  "List of hidden DICOM properties."
+  '( FileSetConsistencyFlag FileSetID
+     IconImageSequence PrivateCreator
+     RecordInUseFlag SpecificCharacterSet
+     "\\`OffsetOf" "UID" " ")
+  "Hidden DICOM properties.
+The list elements are either symbols or regular expressions."
   :type '(repeat (choice string symbol)))
 
 (defcustom dicom-cache-dir (expand-file-name
