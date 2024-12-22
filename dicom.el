@@ -259,10 +259,9 @@ progress:${percent-pos}%%' %s) & disown"
                                 "--quiet" "--charset-assume"
                                 "latin-1" "--convert-to-utf8" file))
       (error "DICOM: Reading DICOM metadata with dcm2xml failed"))
-    (let ((dicom-attribute-filter (string-join
-                               (mapcar (lambda (x) (format "%s" x))
-                                       dicom-attribute-filter)
-                               "\\|")))
+    (let ((dicom-attribute-filter (mapconcat (lambda (x) (format "%s" x))
+                                             dicom-attribute-filter
+                                             "\\|")))
       (dicom--convert (dom-child-by-tag (libxml-parse-xml-region) 'data-set)))))
 
 (defun dicom--image-buffer ()
