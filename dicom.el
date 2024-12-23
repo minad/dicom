@@ -632,7 +632,7 @@ REUSE can be a buffer name to reuse."
      :follow (lambda (link _) (dicom-open link))
      :store
      (lambda ()
-       (when (eq major-mode 'dicom-mode)
+       (when (derived-mode-p 'dicom-mode)
          (org-link-store-props
           :type "dicom"
           :link (concat "dicom:" (abbreviate-file-name dicom--file))))))))
