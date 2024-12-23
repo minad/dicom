@@ -172,6 +172,12 @@ progress:${percent-pos}%%' %s) & disown"
 </svg>")
   "Thumbnail placeholder image.")
 
+(defvar dicom--display-table
+  (let ((table (make-display-table)))
+    (set-display-table-slot table 'wrap ?\s)
+    table)
+  "Display table to hide wrap characters.")
+
 ;;;; Internal functions
 
 (defun dicom--bookmark-record ()
@@ -469,11 +475,12 @@ progress:${percent-pos}%%' %s) & disown"
               dicom--file file
               dicom--data (dicom--read file)
               buffer-read-only t
+              buffer-display-table dicom--display-table
               truncate-lines nil
+              left-fringe-width 0
+              right-fringe-width 0
               bookmark-make-record-function #'dicom--bookmark-record
               revert-buffer-function (lambda (&rest _) (dicom--setup file))
-              fringe-indicator-alist '((continuation . nil)
-                                       (truncation . nil))
               outline-regexp "\\*+"
               outline-minor-mode-cycle t
               outline-minor-mode-use-buttons 'in-margins
