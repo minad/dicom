@@ -622,7 +622,7 @@ REUSE can be a buffer name to reuse."
   (add-to-list 'auto-mode-alist '("DICOMDIR" . dicom-auto-mode)))
 
 ;;;###autoload
-(funcall 'eval-after-load 'ol
+(eval-after-load 'ol
   (lambda ()
     (defvar dicom--file)
     (declare-function org-link-set-parameters "ol")
