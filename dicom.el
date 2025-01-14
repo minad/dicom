@@ -477,6 +477,7 @@ progress:${percent-pos}%%' %s) & disown"
               buffer-read-only t
               buffer-display-table dicom--display-table
               truncate-lines nil
+              word-wrap t
               left-fringe-width 0
               right-fringe-width 0
               bookmark-make-record-function #'dicom--bookmark-record
