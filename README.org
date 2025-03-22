@@ -29,7 +29,7 @@ After installation, you can open ~DICOMDIR~ and DICOM image files.
 
 Emacs must be compiled with support for PNG, SVG and XML. The package relies on
 external programs from the dcmtk DICOM toolkit, which are all widely available
-on Linux distributions.
+on GNU/Linux distributions.
 
 - ~dcm2xml~ and ~dcmj2pnm~ from the dcmtk DICOM toolkit
 - ~ffmpeg~ for video conversion (optional)
