@@ -223,7 +223,7 @@ progress:${percent-pos}%%' %s) & disown"
 (defun dicom--convert-children (dom &optional tag)
   "Convert children of DOM with TAG."
   (delq nil (mapcar (lambda (x)
-                      (and (or (not tag) (eq tag (dom-tag x)))
+                      (and (consp x) (or (not tag) (eq tag (dom-tag x)))
                            (dicom--convert x)))
                     (dom-children dom))))
 
