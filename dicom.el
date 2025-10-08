@@ -6,7 +6,7 @@
 ;; Maintainer: Daniel Mendler <mail@daniel-mendler.de>
 ;; Created: 2024
 ;; Version: 1.0
-;; Package-Requires: ((emacs "28.1") (compat "30"))
+;; Package-Requires: ((emacs "29.1") (compat "30"))
 ;; URL: https://github.com/minad/dicom
 ;; Keywords: multimedia, hypermedia, files
 
@@ -244,7 +244,7 @@ progress:${percent-pos}%%' %s) & disown"
                           (let (case-fold-search)
                             (string-match-p dicom-attribute-filter name))))))
        (cons (intern name) (replace-regexp-in-string
-                            "[ \t\n^]+" " " (dom-text dom)))))
+                            "[ \t\n^]+" " " (dom-inner-text dom)))))
     ('sequence
      (when-let ((name (dom-attr dom 'name))
                 ((not (let (case-fold-search)
