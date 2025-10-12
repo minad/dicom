@@ -244,7 +244,7 @@ progress:${percent-pos}%%' %s) & disown"
                           (let (case-fold-search)
                             (string-match-p dicom-attribute-filter name))))))
        (cons (intern name) (replace-regexp-in-string
-                            "[ \t\n^]+" " " (dom-inner-text dom)))))
+                            "[ \t\n^]+" " " (with-no-warnings (dom-text dom))))))
     ('sequence
      (when-let ((name (dom-attr dom 'name))
                 ((not (let (case-fold-search)
