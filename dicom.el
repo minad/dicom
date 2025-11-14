@@ -374,6 +374,10 @@ The command is specified as FMT string with ARGS."
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
+       ;; If you wonder why we have to try these different commands to extract
+       ;; an image, maybe contribute patches to `dcm2img' or `magick' to improve
+       ;; coverage over the many DICOM image variants. Every order would work.
+       ;; The only difference might be performance. 😉
        "dcm2img --write-png --scale-y-size 200 %s %s || magick %s[0] -resize x200 %s || magick %s[-1] -resize x200 %s"
        src tmp src tmp src tmp))))
 
