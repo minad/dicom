@@ -283,12 +283,12 @@ progress:${percent-pos}%%' %s) & disown"
         (funcall fun image)
         (put-text-property pos (1+ pos) 'display `(image ,@(cdr image)))))))
 
-(defun dicom--run (cb &rest args)
-  "Run process with ARGS asynchronously and call CB when the process finished."
+(defun dicom--run (cb cmd)
+  "Run process with CMD asynchronously and call CB when the process finished."
   (let ((default-directory "/"))
     (push (make-process
            :name "dicom"
-           :command args
+           :command (list "sh" "-c" cmd)
            :noquery t
            :filter #'ignore
            :sentinel
@@ -303,9 +303,10 @@ progress:${percent-pos}%%' %s) & disown"
     (when dicom-timeout
       (run-at-time dicom-timeout nil #'dicom--stop (car dicom--procs)))))
 
-(defun dicom--enqueue (&rest job)
-  "Enqueue conversion JOB."
-  (push job dicom--queue)
+(defun dicom--enqueue (cb fmt &rest args)
+  "Enqueue conversion job with callback CB.
+The command is specified as FMT string with ARGS."
+  (push (cons cb (apply #'format fmt (mapcar #'shell-quote-argument args))) dicom--queue)
   (when (length< dicom--procs dicom-parallel)
     (dicom--process)))
 
@@ -315,7 +316,7 @@ progress:${percent-pos}%%' %s) & disown"
                                (format "[%d]" (length dicom--queue))))
   (when-let ((job (car (last dicom--queue))))
     (setq dicom--queue (nbutlast dicom--queue))
-    (apply #'dicom--run job)))
+    (dicom--run (car job) (cdr job))))
 
 (defun dicom--button (label action)
   "Insert button with LABEL and ACTION."
@@ -373,7 +374,8 @@ progress:${percent-pos}%%' %s) & disown"
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "magick" (concat src "[0]") "-resize" "x200" tmp))))
+       "magick %s[0] -resize x200 %s || magick %s[-1] -resize x200 %s"
+       src tmp src tmp))))
 
 (defun dicom--item (level item &optional indent)
   "Insert ITEM at LEVEL into buffer."
@@ -446,7 +448,8 @@ progress:${percent-pos}%%' %s) & disown"
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "magick" (concat dicom--file "[0]")  tmp))))
+       "magick %s[0] %s || magick %s[-1] %s"
+       dicom--file tmp dicom--file tmp))))
 
 (defun dicom--setup-check ()
   "Check requirements."
@@ -557,14 +560,12 @@ progress:${percent-pos}%%' %s) & disown"
                    (rename-file tmp dst)
                    (dicom-play))
                (delete-file tmp)))
-           "sh" "-c"
-           (format
-            "magick %s bmp:- | ffmpeg -framerate %s -i - %s"
-            (shell-quote-argument dicom--file)
-            (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
-                (alist-get 'CineRate dicom--data)
-                25)
-            (shell-quote-argument tmp)))))))))
+           "magick %s bmp:- | ffmpeg -framerate %s -i - %s"
+           dicom--file
+           (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
+               (alist-get 'CineRate dicom--data)
+               "25")
+           tmp)))))))
 
 ;;;###autoload
 (defun dicom-open-at-point ()
