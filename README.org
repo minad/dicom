@@ -33,7 +33,7 @@ external programs from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit,
 on GNU/Linux distributions.
 
 - ~dcm2xml~ from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit
-- ~convert~ from ImageMagick
+- ~convert~ from [[https://imagemagick.org/][ImageMagick]]
 - ~ffmpeg~ for video conversion (optional)
 - ~mpv~ for video playing (optional)
 
