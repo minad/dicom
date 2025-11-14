@@ -75,7 +75,11 @@
   :type 'natnum)
 
 (defcustom dicom-attribute-width 25
-  "Attribute name width."
+  "Attribute name width in characters."
+  :type 'natnum)
+
+(defcustom dicom-thumb-height 200
+  "Thumbnail height in pixels."
   :type 'natnum)
 
 (defcustom dicom-attribute-filter
@@ -164,13 +168,7 @@ progress:${percent-pos}%%' %s) & disown"
 (defvar-local dicom--procs nil
   "Active conversion processes in current buffer.")
 
-(defconst dicom--thumb
-  '( :margin 8 :type svg :width 267 :height 200
-     :data "<svg xmlns='http://www.w3.org/2000/svg' width='267' height='200'>
-  <rect width='267' height='200' fill='black' stroke='gray'/>
-  <line x1='0' y1='0' x2='267' y2='200' stroke='gray'/>
-  <line x1='0' y1='200' x2='267' y2='0' stroke='gray'/>
-</svg>")
+(defvar dicom--thumb nil
   "Thumbnail placeholder image.")
 
 ;;;; Internal functions
@@ -306,7 +304,11 @@ progress:${percent-pos}%%' %s) & disown"
 (defun dicom--enqueue (cb fmt &rest args)
   "Enqueue conversion job with callback CB.
 The command is specified as FMT string with ARGS."
-  (push (cons cb (apply #'format fmt (mapcar #'shell-quote-argument args))) dicom--queue)
+  (push (cons cb (apply #'format fmt
+                        (mapcar (lambda (x)
+                                  (if (numberp x) x (shell-quote-argument x)))
+                                args)))
+        dicom--queue)
   (when (length< dicom--procs dicom-parallel)
     (dicom--process)))
 
@@ -366,7 +368,14 @@ The command is specified as FMT string with ARGS."
     (delete-region pos (point))
     (insert (propertize
              " "
-             'display (if exists (dicom--image-desc dst) `(image ,@dicom--thumb))
+             'display (if exists
+                          (dicom--image-desc dst)
+                        (unless dicom--thumb
+                          (setq dicom--thumb
+                                (cdr (dicom--placeholder
+                                      (round (* 4 dicom-thumb-height) 3)
+                                      dicom-thumb-height))))
+                        `(image ,@dicom--thumb))
              'pointer 'hand
              'keymap dicom-image-map
              'dicom--file src
@@ -378,8 +387,10 @@ The command is specified as FMT string with ARGS."
        ;; an image, maybe contribute patches to `dcm2img' or `magick' to improve
        ;; coverage over the many DICOM image variants. Every order would work.
        ;; The only difference might be performance. 😉
-       "dcm2img --write-png --scale-y-size 200 %s %s || magick %s[0] -resize x200 %s || magick %s[-1] -resize x200 %s"
-       src tmp src tmp src tmp))))
+       "dcm2img --write-png --scale-y-size %d %s %s || magick %s[0] -resize x%d %s || magick %s[-1] -resize x%d %s"
+       dicom-thumb-height src tmp
+       src dicom-thumb-height tmp
+       src dicom-thumb-height tmp))))
 
 (defun dicom--item (level item &optional indent)
   "Insert ITEM at LEVEL into buffer."
