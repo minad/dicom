@@ -29,8 +29,8 @@ Dicom.el is available from [[https://elpa.gnu.org/packages/dicom.html][GNU ELPA]
 and DICOM image files.
 
 Emacs must be compiled with support for PNG, SVG and XML. The package relies on
-external programs from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit, which are all widely available
-on GNU/Linux distributions.
+external programs from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit, which is widely available on
+GNU/Linux distributions.
 
 - ~dcm2xml~ and ~dcm2img~ from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit
 - ~magick~ from [[https://imagemagick.org/][ImageMagick]]
