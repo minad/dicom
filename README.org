@@ -41,8 +41,10 @@ on GNU/Linux distributions.
 
 The DICOM format is quite diverse. The ~dcm2xml~ tool can read the metadata of
 most uncorrupted DICOM files. It can still happen that the DICOM viewer is
-unable to display files nicely, if the metadata records are not interpreted
-properly. In such cases, any help improving the package is welcome.
+unable to display files, if the metadata records are not interpreted properly.
+Furthermore the DICOM format supports a variety of underlying image formats and
+compressions, which might not be supported by ImageMagick. In such cases, any
+help improving the package is welcome.
 
 * Contributions
 
