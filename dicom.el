@@ -37,10 +37,11 @@
 ;; image files interactively.
 
 ;; Emacs must be compiled with support for PNG, SVG and XML.  The package relies
-;; on external programs from the dcmtk DICOM toolkit, which are all widely
-;; available on Linux distributions.
+;; on external programs from the dcmtk DICOM toolkit, which are widely available
+;; on Linux distributions.
 
-;; - `dcm2xml' and `dcm2img' from the dcmtk DICOM toolkit
+;; - `dcm2xml' from the dcmtk DICOM toolkit
+;; - `convert' from ImageMagick
 ;; - `ffmpeg' for video conversion (optional)
 ;; - `mpv' for video playing (optional)
 
@@ -371,7 +372,7 @@ progress:${percent-pos}%%' %s) & disown"
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "dcm2img" "--write-png" "--scale-y-size" "200" src tmp))))
+       "convert" "-resize" "x200" (concat src "[0]") tmp))))
 
 (defun dicom--item (level item &optional indent)
   "Insert ITEM at LEVEL into buffer."
@@ -444,7 +445,7 @@ progress:${percent-pos}%%' %s) & disown"
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "dcm2img" "--write-png" dicom--file tmp))))
+       "convert" (concat dicom--file "[0]")  tmp))))
 
 (defun dicom--setup-check ()
   "Check requirements."
@@ -456,7 +457,7 @@ progress:${percent-pos}%%' %s) & disown"
     (dolist (type '(png svg))
       (unless (image-type-available-p type)
         (push (format "lib%s" type) req)))
-    (dolist (exe '("dcm2xml" "dcm2img"))
+    (dolist (exe '("dcm2xml" "convert"))
       (unless (executable-find exe)
         (push exe req)))
     (when req
@@ -557,7 +558,7 @@ progress:${percent-pos}%%' %s) & disown"
                (delete-file tmp)))
            "sh" "-c"
            (format
-            "dcmj2pnm --all-frames --write-bmp %s | ffmpeg -framerate %s -i - %s"
+            "convert %s bmp:- | ffmpeg -framerate %s -i - %s"
             (shell-quote-argument dicom--file)
             (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
                 (alist-get 'CineRate dicom--data)
