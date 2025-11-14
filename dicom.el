@@ -256,14 +256,15 @@ progress:${percent-pos}%%' %s) & disown"
 (defun dicom--read (file)
   "Read DICOM FILE and return list of items."
   (with-temp-buffer
-    (unless (eq 0 (call-process "dcm2xml" nil t nil
-                                "--quiet" "--charset-assume"
-                                "latin-1" "--convert-to-utf8" file))
-      (error "DICOM: Reading DICOM metadata with dcm2xml failed"))
-    (let ((dicom-attribute-filter (mapconcat (lambda (x) (format "%s" x))
-                                             dicom-attribute-filter
-                                             "\\|")))
-      (dicom--convert (dom-child-by-tag (libxml-parse-xml-region) 'data-set)))))
+    (if (eq 0 (call-process "dcm2xml" nil t nil
+                            "--quiet" "--charset-assume" "latin-1"
+                            "--convert-to-utf8" file))
+        (let ((dicom-attribute-filter (mapconcat (lambda (x) (format "%s" x))
+                                                 dicom-attribute-filter
+                                                 "\\|")))
+          (dicom--convert (dom-child-by-tag (libxml-parse-xml-region) 'data-set)))
+      (message "DICOM: Reading DICOM metadata with dcm2xml failed")
+      nil)))
 
 (defun dicom--image-buffer ()
   "Return image buffer or throw an error."
