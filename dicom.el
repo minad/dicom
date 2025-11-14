@@ -66,7 +66,7 @@
   :group 'multimedia
   :prefix "dicom-")
 
-(defcustom dicom-timeout 3
+(defcustom dicom-timeout 5
   "Timeout for conversion."
   :type 'natnum)
 
