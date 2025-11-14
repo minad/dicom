@@ -41,7 +41,7 @@
 ;; on Linux distributions.
 
 ;; - `dcm2xml' from the dcmtk DICOM toolkit
-;; - `convert' from ImageMagick
+;; - `magick' from ImageMagick
 ;; - `ffmpeg' for video conversion (optional)
 ;; - `mpv' for video playing (optional)
 
@@ -373,7 +373,7 @@ progress:${percent-pos}%%' %s) & disown"
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "convert" "-resize" "x200" (concat src "[0]") tmp))))
+       "magick" (concat src "[0]") "-resize" "x200" tmp))))
 
 (defun dicom--item (level item &optional indent)
   "Insert ITEM at LEVEL into buffer."
@@ -446,7 +446,7 @@ progress:${percent-pos}%%' %s) & disown"
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "convert" (concat dicom--file "[0]")  tmp))))
+       "magick" (concat dicom--file "[0]")  tmp))))
 
 (defun dicom--setup-check ()
   "Check requirements."
@@ -458,7 +458,7 @@ progress:${percent-pos}%%' %s) & disown"
     (dolist (type '(png svg))
       (unless (image-type-available-p type)
         (push (format "lib%s" type) req)))
-    (dolist (exe '("dcm2xml" "convert"))
+    (dolist (exe '("dcm2xml" "magick"))
       (unless (executable-find exe)
         (push exe req)))
     (when req
@@ -559,7 +559,7 @@ progress:${percent-pos}%%' %s) & disown"
                (delete-file tmp)))
            "sh" "-c"
            (format
-            "convert %s bmp:- | ffmpeg -framerate %s -i - %s"
+            "magick %s bmp:- | ffmpeg -framerate %s -i - %s"
             (shell-quote-argument dicom--file)
             (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
                 (alist-get 'CineRate dicom--data)
