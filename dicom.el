@@ -40,7 +40,7 @@
 ;; on external programs from the dcmtk DICOM toolkit, which are widely available
 ;; on Linux distributions.
 
-;; - `dcm2xml' from the dcmtk DICOM toolkit
+;; - `dcm2xml' and `dcm2img' from the dcmtk DICOM toolkit
 ;; - `magick' from ImageMagick
 ;; - `ffmpeg' for video conversion (optional)
 ;; - `mpv' for video playing (optional)
@@ -374,8 +374,8 @@ The command is specified as FMT string with ARGS."
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "magick %s[0] -resize x200 %s || magick %s[-1] -resize x200 %s"
-       src tmp src tmp))))
+       "dcm2img --write-png --scale-y-size 200 %s %s || magick %s[0] -resize x200 %s || magick %s[-1] -resize x200 %s"
+       src tmp src tmp src tmp))))
 
 (defun dicom--item (level item &optional indent)
   "Insert ITEM at LEVEL into buffer."
@@ -448,8 +448,8 @@ The command is specified as FMT string with ARGS."
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "magick %s[0] %s || magick %s[-1] %s"
-       dicom--file tmp dicom--file tmp))))
+       "dcm2img --write-png %s %s || magick %s[0] %s || magick %s[-1] %s"
+       dicom--file tmp dicom--file tmp dicom--file tmp))))
 
 (defun dicom--setup-check ()
   "Check requirements."
@@ -461,7 +461,7 @@ The command is specified as FMT string with ARGS."
     (dolist (type '(png svg))
       (unless (image-type-available-p type)
         (push (format "lib%s" type) req)))
-    (dolist (exe '("dcm2xml" "magick"))
+    (dolist (exe '("dcm2xml" "dcm2img" "magick"))
       (unless (executable-find exe)
         (push exe req)))
     (when req
@@ -560,8 +560,8 @@ The command is specified as FMT string with ARGS."
                    (rename-file tmp dst)
                    (dicom-play))
                (delete-file tmp)))
-           "magick %s bmp:- | ffmpeg -framerate %s -i - %s"
-           dicom--file
+           "(dcm2img --all-frames --write-bmp %s || magick %s bmp:-) | ffmpeg -framerate %s -i - %s"
+           dicom--file dicom--file
            (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
                (alist-get 'CineRate dicom--data)
                "25")
