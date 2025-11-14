@@ -40,7 +40,7 @@
 ;; on external programs from the dcmtk DICOM toolkit, which are all widely
 ;; available on Linux distributions.
 
-;; - `dcm2xml' and `dcmj2pnm' from the dcmtk DICOM toolkit
+;; - `dcm2xml' and `dcm2img' from the dcmtk DICOM toolkit
 ;; - `ffmpeg' for video conversion (optional)
 ;; - `mpv' for video playing (optional)
 
@@ -371,7 +371,7 @@ progress:${percent-pos}%%' %s) & disown"
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "dcmj2pnm" "--write-png" "--scale-y-size" "200" src tmp))))
+       "dcm2img" "--write-png" "--scale-y-size" "200" src tmp))))
 
 (defun dicom--item (level item &optional indent)
   "Insert ITEM at LEVEL into buffer."
@@ -444,7 +444,7 @@ progress:${percent-pos}%%' %s) & disown"
     (unless exists
       (dicom--enqueue
        (dicom--image-callback tmp dst pos)
-       "dcmj2pnm" "--write-png" dicom--file tmp))))
+       "dcm2img" "--write-png" dicom--file tmp))))
 
 (defun dicom--setup-check ()
   "Check requirements."
@@ -456,7 +456,7 @@ progress:${percent-pos}%%' %s) & disown"
     (dolist (type '(png svg))
       (unless (image-type-available-p type)
         (push (format "lib%s" type) req)))
-    (dolist (exe '("dcm2xml" "dcmj2pnm"))
+    (dolist (exe '("dcm2xml" "dcm2img"))
       (unless (executable-find exe)
         (push exe req)))
     (when req
