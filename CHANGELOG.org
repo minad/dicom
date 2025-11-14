@@ -1,0 +1,15 @@
+#+title: dicom.el - Changelog
+#+author: Daniel Mendler
+#+language: en
+
+* Development
+
+- Use ~dcm2img~ instead of deprecated ~dcmj2pnm~.
+- Improve handling of DICOM files with invalid encoding. Use Emacs encoding
+  conversion instead of ~--convert-to-utf8~ from ~dcm2xml~.
+- Improve image conversion of DICOM files by falling back to ImageMagick in case
+  ~dcm2img~ fails.
+
+* Version 1.1 (2025-10-13)
+
+- Start of changelog.
