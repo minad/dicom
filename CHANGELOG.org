@@ -12,4 +12,8 @@
 
 * Version 1.1 (2025-10-13)
 
+- Handle empty sequences in DICOM files.
+
+* Version 1.0 (2025-09-08)
+
 - Start of changelog.
