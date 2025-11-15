@@ -192,7 +192,7 @@ progress:${percent-pos}%%' %s) & disown"
 
 (defun dicom--image-desc (file)
   "Image descriptor for FILE."
-  `(image :margin 8 :type png :file ,file))
+  `(image :margin 6 :type png :file ,file))
 
 (defun dicom--dir-p (&optional file)
   "Non-nil if FILE is a DICOMDIR."
@@ -444,7 +444,7 @@ The command is specified as FMT string with ARGS."
 (defun dicom--placeholder (w h)
   "Placeholder image with W and H."
   `(image
-    :margin 8 :type svg :width ,w :height ,h
+    :margin 6 :type svg :width ,w :height ,h
     :data
     ,(format
       "<svg xmlns='http://www.w3.org/2000/svg' width='%1$s' height='%2$s'>
