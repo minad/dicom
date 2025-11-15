@@ -271,7 +271,7 @@ progress:${percent-pos}%%' %s) & disown"
 
 (defun dicom--image-buffer ()
   "Return image buffer or throw an error."
-  (or (and (eq major-mode #'dicom-mode)
+  (or (and dicom--file
            (if (dicom--dir-p)
                (and (buffer-live-p dicom--image-buffer)
                     dicom--image-buffer)
@@ -280,11 +280,10 @@ progress:${percent-pos}%%' %s) & disown"
 
 (defun dicom--dir-buffer ()
   "Return dir buffer or throw an error."
-  (or (and (eq major-mode #'dicom-mode)
+  (or (and dicom--file
            (if (dicom--dir-p)
                (current-buffer)
-             (when-let ((dicom--file)
-                        (dir (locate-dominating-file dicom--file "DICOMDIR")))
+             (when-let ((dir (locate-dominating-file dicom--file "DICOMDIR")))
                (get-buffer (dicom--buffer-name (concat dir "DICOMDIR"))))))
       (user-error "DICOM: No open DICOMDIR found")))
 
