@@ -523,7 +523,6 @@ The command is specified as FMT string with ARGS."
               (format (propertize " DICOM %s %s" 'face 'dicom-header)
                       (if (dicom--dir-p) "DIR" "IMAGE")
                       (cadr (dicom--file-name)))
-              cursor-in-non-selected-windows t
               cursor-face-highlight-nonselected-window t))
 
 (defun dicom--setup-content ()
