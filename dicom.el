@@ -392,7 +392,7 @@ The command is specified as FMT string with ARGS."
                                       (round (* 4 dicom-thumb-height) 3)
                                       dicom-thumb-height))))
                         `(image ,@dicom--thumb))
-             'cursor-face (list :inherit 'cursor)
+             'cursor-face (list :inherit 'cursor) ;; New cons cell
              'pointer 'hand
              'keymap dicom-image-map
              'dicom--file src
@@ -473,6 +473,7 @@ The command is specified as FMT string with ARGS."
              " "
              'dicom--image t
              'pointer 'arrow
+             'cursor-face 'cursor
              'display (if exists
                           (dicom--image-desc dst)
                         (dicom--placeholder
@@ -521,11 +522,9 @@ The command is specified as FMT string with ARGS."
               header-line-format
               (format (propertize " DICOM %s %s" 'face 'dicom-header)
                       (if (dicom--dir-p) "DIR" "IMAGE")
-                      (cadr (dicom--file-name))))
-  (when (dicom--dir-p)
-    (cursor-face-highlight-mode)
-    (setq-local cursor-in-non-selected-windows t
-                cursor-face-highlight-nonselected-window t)))
+                      (cadr (dicom--file-name)))
+              cursor-in-non-selected-windows t
+              cursor-face-highlight-nonselected-window t))
 
 (defun dicom--setup-content ()
   "Setup buffer content."
@@ -547,7 +546,8 @@ The command is specified as FMT string with ARGS."
         (dicom-mode)
         (dicom--setup-locals file)
         (dicom--setup-content)
-        (outline-minor-mode))
+        (outline-minor-mode)
+        (cursor-face-highlight-mode))
     (error
      (kill-buffer)
      (signal (car err) (cdr err)))))
