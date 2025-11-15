@@ -164,6 +164,9 @@ progress:${percent-pos}%%' %s) & disown"
 (defvar-local dicom--file nil
   "File associated with the current buffer.")
 
+(defvar-local dicom--image-buffer nil
+  "Image buffer associated with the current buffer.")
+
 (defvar-local dicom--queue nil
   "Conversion process queue in current buffer.")
 
@@ -269,8 +272,9 @@ progress:${percent-pos}%%' %s) & disown"
 (defun dicom--image-buffer ()
   "Return image buffer or throw an error."
   (if (dicom--dir-p)
-      (or (get-buffer "*dicom image*")
-          (user-error "DICOM: No open image"))
+      (if (buffer-live-p dicom--image-buffer)
+          dicom--image-buffer
+        (user-error "DICOM: No open image"))
     (current-buffer)))
 
 (defun dicom--modify-image (fun)
@@ -523,6 +527,7 @@ The command is specified as FMT string with ARGS."
       (progn
         (dicom--setup-check)
         (mapc #'dicom--stop dicom--procs)
+        (rename-buffer (dicom--buffer-name file) t)
         (dicom-mode)
         (dicom--setup-locals file)
         (dicom--setup-content)
@@ -558,27 +563,28 @@ The command is specified as FMT string with ARGS."
   "Go forward N images."
   (interactive "p" dicom-mode)
   (setq n (or n 1))
-  (dicom-open
-   (with-current-buffer
-       (if (dicom--dir-p)
-           (current-buffer)
-         (if-let ((dicom--file)
-                  (dir (locate-dominating-file dicom--file "DICOMDIR"))
-                  (buf (get-buffer (dicom--buffer-name (concat dir "DICOMDIR")))))
-             buf
-           (user-error "DICOM: No open DICOMDIR found")))
-     (if (> n 0)
-         (while-let (((> n 0))
-                     (pt (next-single-property-change (point) 'dicom--file nil (point-max))))
-           (goto-char pt)
-           (cl-decf n))
-       (while-let (((< n 0))
-                   (pt (previous-single-property-change (point) 'dicom--file nil (point-min))))
-         (goto-char pt)
-         (cl-incf n)))
+  (with-current-buffer
+      (if (dicom--dir-p)
+          (current-buffer)
+        (if-let ((dicom--file)
+                 (dir (locate-dominating-file dicom--file "DICOMDIR"))
+                 (buf (get-buffer (dicom--buffer-name (concat dir "DICOMDIR")))))
+            buf
+          (user-error "DICOM: No open DICOMDIR found")))
+    (if (> n 0)
+        (while-let (((> n 0))
+                    (pt (next-single-property-change
+                         (point) 'dicom--file nil (point-max))))
+          (goto-char pt)
+          (cl-decf n))
+      (while-let (((< n 0))
+                  (pt (previous-single-property-change
+                       (point) 'dicom--file nil (point-min))))
+        (goto-char pt)
+        (cl-incf n)))
+    (dicom-open
      (or (get-text-property (point) 'dicom--file)
-         (user-error "DICOM: No image found")))
-   "*dicom image*"))
+         (user-error "DICOM: No image found")))))
 
 (defun dicom-previous (&optional n)
   "Go backward N images."
@@ -628,29 +634,29 @@ The command is specified as FMT string with ARGS."
                     (thing-at-mouse last-input-event 'filename))
               (or (get-text-property (point) 'dicom--file)
                   (thing-at-point 'filename)))))
-      (dicom-open file (and (not last-prefix-arg) "*dicom image*"))
+      (dicom-open file)
     (user-error "DICOM: No DICOM file at point")))
 
 ;;;###autoload
-(defun dicom-open (file &optional reuse)
-  "Open DICOM dir or image FILE.
-REUSE can be a buffer name to reuse."
+(defun dicom-open (file)
+  "Open DICOM dir or image FILE."
   (interactive "fDICOM: ")
   (let* ((file (expand-file-name (if (directory-name-p file)
                                      (file-name-concat file "DICOMDIR")
                                    file)))
+         (_ (unless (file-regular-p file)
+              (user-error "DICOM: File %s not found" file)))
          (default-directory (file-name-directory file))
-         (buf (or reuse (dicom--buffer-name file))))
-    (unless (file-regular-p file)
-      (user-error "DICOM: File %s not found" file))
-    (unless (when-let ((buf (get-buffer buf)))
-              (equal (buffer-local-value 'dicom--file buf) file))
-      (with-current-buffer (get-buffer-create buf)
+         (reuse (and (buffer-live-p dicom--image-buffer) dicom--image-buffer))
+         (buf (or reuse (get-buffer-create (dicom--buffer-name file)))))
+    (unless (equal (buffer-local-value 'dicom--file buf) file)
+      (with-current-buffer buf
         (dicom--setup file)))
-    (if reuse
-        (display-buffer buf (and (not (equal reuse (buffer-name)))
-                                 '(nil (inhibit-same-window . t))))
-      (pop-to-buffer buf))))
+    (if (not (dicom--dir-p))
+        (pop-to-buffer buf)
+      (setq dicom--image-buffer buf)
+      (display-buffer buf (and (not (eq (window-buffer) buf))
+                               '(nil (inhibit-same-window . t)))))))
 
 ;;;###autoload
 (defun dicom-bookmark-jump (bm)
@@ -665,7 +671,6 @@ REUSE can be a buffer name to reuse."
   (let ((file (expand-file-name buffer-file-name)))
     (setq-local buffer-file-name nil
                 buffer-file-truename nil)
-    (rename-buffer (dicom--buffer-name file) t)
     (dicom--setup file)))
 
 ;;;###autoload
