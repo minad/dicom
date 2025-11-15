@@ -519,7 +519,9 @@ The command is specified as FMT string with ARGS."
               header-line-format
               (format (propertize " DICOM %s %s" 'face 'dicom-header)
                       (if (dicom--dir-p) "DIR" "IMAGE")
-                      (cadr (dicom--file-name)))))
+                      (cadr (dicom--file-name))))
+  (when (and (dicom--dir-p) (not cursor-in-non-selected-windows))
+    (setq-local cursor-in-non-selected-windows t)))
 
 (defun dicom--setup-content ()
   "Setup buffer content."
@@ -587,6 +589,8 @@ The command is specified as FMT string with ARGS."
         (goto-char pt)
         (when (or (bobp) (get-text-property pt 'dicom--file))
           (cl-incf n))))
+    (when-let ((win (get-buffer-window)))
+      (set-window-point win (point)))
     (dicom-open
      (or (get-text-property (point) 'dicom--file)
          (user-error "DICOM: No image found")))))
