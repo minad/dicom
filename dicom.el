@@ -131,10 +131,12 @@ progress:${percent-pos}%%' %s) & disown"
 (defvar-keymap dicom-mode-map
   :doc "Keymap used by `dicom-mode'."
   :parent special-mode-map
-  "p" #'dicom-play
+  "y" #'dicom-play
   "+" #'dicom-larger
   "-" #'dicom-smaller
   "r" #'dicom-rotate
+  "p" #'dicom-previous
+  "n" #'dicom-next
   "TAB" #'outline-cycle
   "<backtab>" #'outline-cycle-buffer)
 
@@ -444,6 +446,8 @@ The command is specified as FMT string with ARGS."
   (dicom--button "Larger" #'dicom-larger)
   (dicom--button "Smaller" #'dicom-smaller)
   (dicom--button "Rotate" #'dicom-rotate)
+  (dicom--button "Previous" #'dicom-previous)
+  (dicom--button "Next" #'dicom-next)
   (when-let ((frames (alist-get 'NumberOfFrames dicom--data)))
     (dicom--button (format "Play (%s frames)" frames) #'dicom-play))
   (insert "\n" (propertize "\n" 'face '(:height 0.2)))
@@ -550,6 +554,37 @@ The command is specified as FMT string with ARGS."
   (interactive "p" dicom-mode)
   (dicom-larger (- n)))
 
+(defun dicom-next (&optional n)
+  "Go forward N images."
+  (interactive "p" dicom-mode)
+  (setq n (or n 1))
+  (dicom-open
+   (with-current-buffer
+       (if (dicom--dir-p)
+           (current-buffer)
+         (if-let ((dicom--file)
+                  (dir (locate-dominating-file dicom--file "DICOMDIR"))
+                  (buf (get-buffer (dicom--buffer-name (concat dir "DICOMDIR")))))
+             buf
+           (user-error "DICOM: No open DICOMDIR found")))
+     (if (> n 0)
+         (while-let (((> n 0))
+                     (pt (next-single-property-change (point) 'dicom--file nil (point-max))))
+           (goto-char pt)
+           (cl-decf n))
+       (while-let (((< n 0))
+                   (pt (previous-single-property-change (point) 'dicom--file nil (point-min))))
+         (goto-char pt)
+         (cl-incf n)))
+     (or (get-text-property (point) 'dicom--file)
+         (user-error "DICOM: No image found")))
+   "*dicom image*"))
+
+(defun dicom-previous (&optional n)
+  "Go backward N images."
+  (interactive "p" dicom-mode)
+  (dicom-next (- (or n 1))))
+
 (defun dicom-play ()
   "Play DICOM multi frame image."
   (interactive nil dicom-mode)
@@ -585,7 +620,7 @@ The command is specified as FMT string with ARGS."
 ;;;###autoload
 (defun dicom-open-at-point ()
   "Open DICOM at point."
-  (interactive)
+  (interactive nil dicom-mode)
   (if-let ((file
             (if (mouse-event-p last-input-event)
                 (or (mouse-posn-property (event-start last-input-event)
@@ -613,7 +648,8 @@ REUSE can be a buffer name to reuse."
       (with-current-buffer (get-buffer-create buf)
         (dicom--setup file)))
     (if reuse
-        (display-buffer buf '(nil (inhibit-same-window . t)))
+        (display-buffer buf (and (not (equal reuse (buffer-name)))
+                                 '(nil (inhibit-same-window . t))))
       (pop-to-buffer buf))))
 
 ;;;###autoload
