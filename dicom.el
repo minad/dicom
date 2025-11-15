@@ -657,11 +657,12 @@ The command is specified as FMT string with ARGS."
     (unless (equal (buffer-local-value 'dicom--file buf) file)
       (with-current-buffer buf
         (dicom--setup file)))
-    (if (not (dicom--dir-p))
-        (pop-to-buffer buf)
-      (setq dicom--image-buffer buf)
-      (display-buffer buf (and (not (eq (window-buffer) buf))
-                               '(nil (inhibit-same-window . t)))))))
+    (when (dicom--dir-p)
+      (setq dicom--image-buffer buf))
+    (if (with-current-buffer (window-buffer)
+          (and dicom--file (not (dicom--dir-p))))
+        (switch-to-buffer buf)
+      (pop-to-buffer buf '(nil (inhibit-same-window . t))))))
 
 ;;;###autoload
 (defun dicom-bookmark-jump (bm)
