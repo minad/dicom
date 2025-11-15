@@ -519,11 +519,11 @@ The command is specified as FMT string with ARGS."
               outline-regexp "\\*+"
               outline-minor-mode-cycle t
               outline-minor-mode-use-buttons 'in-margins
+              cursor-face-highlight-nonselected-window t
               header-line-format
               (format (propertize " DICOM %s %s" 'face 'dicom-header)
                       (if (dicom--dir-p) "DIR" "IMAGE")
-                      (cadr (dicom--file-name)))
-              cursor-face-highlight-nonselected-window t))
+                      (cadr (dicom--file-name)))))
 
 (defun dicom--setup-content ()
   "Setup buffer content."
