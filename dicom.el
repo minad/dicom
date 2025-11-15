@@ -576,12 +576,14 @@ The command is specified as FMT string with ARGS."
                     (pt (next-single-property-change
                          (point) 'dicom--file nil (point-max))))
           (goto-char pt)
-          (cl-decf n))
+          (when (or (eobp) (get-text-property pt 'dicom--file))
+            (cl-decf n)))
       (while-let (((< n 0))
                   (pt (previous-single-property-change
                        (point) 'dicom--file nil (point-min))))
         (goto-char pt)
-        (cl-incf n)))
+        (when (or (bobp) (get-text-property pt 'dicom--file))
+          (cl-incf n))))
     (dicom-open
      (or (get-text-property (point) 'dicom--file)
          (user-error "DICOM: No image found")))))
