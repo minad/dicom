@@ -284,7 +284,7 @@ progress:${percent-pos}%%' %s) & disown"
            (if (dicom--dir-p)
                (current-buffer)
              (when-let ((dir (locate-dominating-file dicom--file "DICOMDIR")))
-               (get-buffer (dicom--buffer-name (concat dir "DICOMDIR"))))))
+               (get-buffer (dicom--buffer-name (file-name-concat dir "DICOMDIR"))))))
       (user-error "DICOM: No open DICOMDIR found")))
 
 (defun dicom--modify-image (fun)
@@ -506,6 +506,7 @@ The command is specified as FMT string with ARGS."
               dicom--procs nil
               dicom--file file
               dicom--data (dicom--read file)
+              default-directory (file-name-directory dicom--file)
               buffer-read-only t
               truncate-lines nil
               word-wrap t
@@ -655,7 +656,6 @@ The command is specified as FMT string with ARGS."
                                    file)))
          (_ (unless (file-regular-p file)
               (user-error "DICOM: File %s not found" file)))
-         (default-directory (file-name-directory file))
          (reuse (and (buffer-live-p dicom--image-buffer) dicom--image-buffer))
          (buf (or reuse (get-buffer-create (dicom--buffer-name file)))))
     (unless (equal (buffer-local-value 'dicom--file buf) file)
@@ -663,10 +663,14 @@ The command is specified as FMT string with ARGS."
         (dicom--setup file)))
     (when (dicom--dir-p)
       (setq dicom--image-buffer buf))
-    (if (with-current-buffer (window-buffer)
-          (and dicom--file (not (dicom--dir-p))))
-        (switch-to-buffer buf)
-      (pop-to-buffer buf '(nil (inhibit-same-window . t))))))
+    (cond
+     ((with-current-buffer (window-buffer)
+        (and dicom--file (not (dicom--dir-p))))
+      (switch-to-buffer buf nil t))
+     ((with-current-buffer (window-buffer) (dicom--dir-p))
+      (display-buffer buf '(nil (inhibit-same-window . t))))
+     (t
+      (pop-to-buffer buf '(nil (inhibit-same-window . t)))))))
 
 ;;;###autoload
 (defun dicom-bookmark-jump (bm)
@@ -678,10 +682,14 @@ The command is specified as FMT string with ARGS."
 ;;;###autoload
 (defun dicom-auto-mode ()
   "Enable `dicom-mode' in current buffer."
-  (let ((file (expand-file-name buffer-file-name)))
-    (setq-local buffer-file-name nil
-                buffer-file-truename nil)
-    (dicom--setup file)))
+  (let ((file buffer-file-name))
+    (if-let ((buf (get-buffer (dicom--buffer-name file))))
+        (progn
+          (kill-current-buffer)
+          (switch-to-buffer buf))
+      (setq-local buffer-file-name nil
+                  buffer-file-truename nil)
+      (dicom--setup file))))
 
 ;;;###autoload
 (progn
