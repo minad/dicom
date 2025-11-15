@@ -2,7 +2,7 @@
 #+author: Daniel Mendler
 #+language: en
 
-* Development
+* Version 1.2 (2025-11-15)
 
 - ~dicom-next~, ~dicom-previous~: New commands to move to next or previous image.
 - ~dicom-thumb-height~: New option to configure thumbnail image pixel height.
