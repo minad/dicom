@@ -271,11 +271,22 @@ progress:${percent-pos}%%' %s) & disown"
 
 (defun dicom--image-buffer ()
   "Return image buffer or throw an error."
-  (if (dicom--dir-p)
-      (if (buffer-live-p dicom--image-buffer)
-          dicom--image-buffer
-        (user-error "DICOM: No open image"))
-    (current-buffer)))
+  (or (and (eq major-mode #'dicom-mode)
+           (if (dicom--dir-p)
+               (and (buffer-live-p dicom--image-buffer)
+                    dicom--image-buffer)
+             (current-buffer)))
+      (user-error "DICOM: No open image")))
+
+(defun dicom--dir-buffer ()
+  "Return dir buffer or throw an error."
+  (or (and (eq major-mode #'dicom-mode)
+           (if (dicom--dir-p)
+               (current-buffer)
+             (when-let ((dicom--file)
+                        (dir (locate-dominating-file dicom--file "DICOMDIR")))
+               (get-buffer (dicom--buffer-name (concat dir "DICOMDIR"))))))
+      (user-error "DICOM: No open DICOMDIR found")))
 
 (defun dicom--modify-image (fun)
   "Modify image properties by FUN."
@@ -563,14 +574,7 @@ The command is specified as FMT string with ARGS."
   "Go forward N images."
   (interactive "p" dicom-mode)
   (setq n (or n 1))
-  (with-current-buffer
-      (if (dicom--dir-p)
-          (current-buffer)
-        (if-let ((dicom--file)
-                 (dir (locate-dominating-file dicom--file "DICOMDIR"))
-                 (buf (get-buffer (dicom--buffer-name (concat dir "DICOMDIR")))))
-            buf
-          (user-error "DICOM: No open DICOMDIR found")))
+  (with-current-buffer (dicom--dir-buffer)
     (if (> n 0)
         (while-let (((> n 0))
                     (pt (next-single-property-change
@@ -628,7 +632,7 @@ The command is specified as FMT string with ARGS."
 ;;;###autoload
 (defun dicom-open-at-point ()
   "Open DICOM at point."
-  (interactive nil dicom-mode)
+  (interactive)
   (if-let ((file
             (if (mouse-event-p last-input-event)
                 (or (mouse-posn-property (event-start last-input-event)
