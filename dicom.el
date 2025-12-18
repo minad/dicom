@@ -419,10 +419,14 @@ The command is specified as FMT string with ARGS."
           (if (equal type "IMAGE")
               (dicom--thumb level item)
             (dicom--title level
-                          (format "%s %s" type
+                          (format "%s %s %s" type
                                   (or (alist-get 'StudyDescription item)
                                       (alist-get 'SeriesDescription item)
                                       (alist-get 'PatientName item)
+                                      "")
+                                  (or (alist-get 'StudyDate item)
+                                      (alist-get 'PatientBirthDate item)
+                                      (alist-get 'SeriesNumber item)
                                       "")))
             (dicom--item level item)))))
      ((listp v)
