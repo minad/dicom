@@ -208,7 +208,7 @@ progress:${percent-pos}%%' %s) & disown"
              (directory-file-name
               (file-name-parent-directory file))))
     (list "dicom image: "
-          (if-let ((dir (locate-dominating-file file "DICOMDIR")))
+          (if-let* ((dir (locate-dominating-file file "DICOMDIR")))
               (file-name-sans-extension
                (file-relative-name file (file-name-parent-directory dir)))
             (file-name-base file)))))
@@ -242,18 +242,18 @@ progress:${percent-pos}%%' %s) & disown"
      (nconc (dicom--sort-alist (dicom--convert-children dom 'element))
             (dicom--sort-alist (dicom--convert-children dom 'sequence))))
     ('element
-     (when-let ((name (dom-attr dom 'name))
-                ((not (or (equal (dom-attr dom 'loaded) "no")
-                          (equal (dom-attr dom 'binary) "hidden")
-                          (let (case-fold-search)
-                            (string-match-p dicom-attribute-filter name))))))
+     (when-let* ((name (dom-attr dom 'name))
+                 ((not (or (equal (dom-attr dom 'loaded) "no")
+                           (equal (dom-attr dom 'binary) "hidden")
+                           (let (case-fold-search)
+                             (string-match-p dicom-attribute-filter name))))))
        (cons (intern name) (replace-regexp-in-string
                             "[ \t\n^]+" " " (with-no-warnings (dom-text dom))))))
     ('sequence
-     (when-let ((name (dom-attr dom 'name))
-                ((not (let (case-fold-search)
-                        (string-match-p dicom-attribute-filter name))))
-                (children (dicom--convert-children dom)))
+     (when-let* ((name (dom-attr dom 'name))
+                 ((not (let (case-fold-search)
+                         (string-match-p dicom-attribute-filter name))))
+                 (children (dicom--convert-children dom)))
        (cons (intern name) children)))))
 
 (defun dicom--read (file)
@@ -283,15 +283,15 @@ progress:${percent-pos}%%' %s) & disown"
   (or (and dicom--file
            (if (dicom--dir-p)
                (current-buffer)
-             (when-let ((dir (locate-dominating-file dicom--file "DICOMDIR")))
+             (when-let* ((dir (locate-dominating-file dicom--file "DICOMDIR")))
                (get-buffer (dicom--buffer-name (file-name-concat dir "DICOMDIR"))))))
       (user-error "DICOM: No open DICOMDIR found")))
 
 (defun dicom--modify-image (fun)
   "Modify image properties by FUN."
   (with-current-buffer (dicom--image-buffer)
-    (when-let ((pos (text-property-not-all (point-min) (point-max) 'dicom--image nil))
-               (image (get-text-property pos 'display)))
+    (when-let* ((pos (text-property-not-all (point-min) (point-max) 'dicom--image nil))
+                (image (get-text-property pos 'display)))
       (with-silent-modifications
         (goto-char pos)
         (funcall fun image)
@@ -332,7 +332,7 @@ The command is specified as FMT string with ARGS."
   "Process conversion queue."
   (setq mode-line-process (and dicom--queue
                                (format "[%d]" (length dicom--queue))))
-  (when-let ((job (car (last dicom--queue))))
+  (when-let* ((job (car (last dicom--queue))))
     (setq dicom--queue (nbutlast dicom--queue))
     (dicom--run (car job) (cdr job))))
 
@@ -467,7 +467,7 @@ The command is specified as FMT string with ARGS."
   (dicom--button "Rotate" #'dicom-rotate)
   (dicom--button "Previous" #'dicom-previous)
   (dicom--button "Next" #'dicom-next)
-  (when-let ((frames (alist-get 'NumberOfFrames dicom--data)))
+  (when-let* ((frames (alist-get 'NumberOfFrames dicom--data)))
     (dicom--button (format "Play (%s frames)" frames) #'dicom-play))
   (insert "\n" (propertize "\n" 'face '(:height 0.2)))
   (pcase-let* ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
@@ -596,7 +596,7 @@ The command is specified as FMT string with ARGS."
         (goto-char pt)
         (when (or (bobp) (get-text-property pt 'dicom--file))
           (cl-incf n))))
-    (when-let ((win (get-buffer-window)))
+    (when-let* ((win (get-buffer-window)))
       (set-window-point win (point)))
     (dicom-open
      (or (get-text-property (point) 'dicom--file)
@@ -643,13 +643,13 @@ The command is specified as FMT string with ARGS."
 (defun dicom-open-at-point ()
   "Open DICOM at point."
   (interactive)
-  (if-let ((file
-            (if (mouse-event-p last-input-event)
-                (or (mouse-posn-property (event-start last-input-event)
-                                         'dicom--file)
-                    (thing-at-mouse last-input-event 'filename))
-              (or (get-text-property (point) 'dicom--file)
-                  (thing-at-point 'filename)))))
+  (if-let* ((file
+             (if (mouse-event-p last-input-event)
+                 (or (mouse-posn-property (event-start last-input-event)
+                                          'dicom--file)
+                     (thing-at-mouse last-input-event 'filename))
+               (or (get-text-property (point) 'dicom--file)
+                   (thing-at-point 'filename)))))
       (dicom-open file)
     (user-error "DICOM: No DICOM file at point")))
 
@@ -689,7 +689,7 @@ The command is specified as FMT string with ARGS."
 (defun dicom-auto-mode ()
   "Enable `dicom-mode' in current buffer."
   (let ((file buffer-file-name))
-    (if-let ((buf (get-buffer (dicom--buffer-name file))))
+    (if-let* ((buf (get-buffer (dicom--buffer-name file))))
         (progn
           (kill-current-buffer)
           (switch-to-buffer buf))
