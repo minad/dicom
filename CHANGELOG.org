@@ -2,6 +2,11 @@
 #+author: Daniel Mendler
 #+language: en
 
+* Development
+
+- Use =when-let*= instead of =when-let=.
+- Show date or series number in section title.
+
 * Version 1.2 (2025-11-15)
 
 - ~dicom-next~, ~dicom-previous~: New commands to move to next or previous image.
