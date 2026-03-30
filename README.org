@@ -22,9 +22,8 @@ files and DICOM images (file extension ~*.dcm~ or ~*.ima~). Furthermore the comm
 
 * Installation
 
-Dicom.el is available from MELPA. You can install it directly via ~M-x
-package-install RET dicom RET~. After installation, you can open ~DICOMDIR~ and
-DICOM image files.
+Dicom.el is available on MELPA and can be installed via ~M-x package-install RET dicom RET~.
+After installation, you can open ~DICOMDIR~ and DICOM image files.
 
 Emacs must be compiled with support for PNG, SVG and XML. The package relies on
 external programs from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit, which is widely available on
