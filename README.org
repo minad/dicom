@@ -7,6 +7,8 @@
 #+texinfo_dir_desc: Digital Imaging and Communications in Medicine.
 
 #+html: <a href="https://www.gnu.org/software/emacs/"><img alt="GNU Emacs" src="https://github.com/minad/corfu/blob/screenshots/emacs.svg?raw=true"/></a>
+#+html: <a href="https://elpa.gnu.org/packages/dicom.html"><img alt="GNU ELPA" src="https://elpa.gnu.org/packages/dicom.svg"/></a>
+#+html: <a href="https://elpa.gnu.org/devel/dicom.html"><img alt="GNU-devel ELPA" src="https://elpa.gnu.org/devel/dicom.svg"/></a>
 #+html: <a href="https://melpa.org/#/dicom"><img alt="MELPA" src="https://melpa.org/packages/dicom-badge.svg"/></a>
 #+html: <a href="https://stable.melpa.org/#/dicom"><img alt="MELPA Stable" src="https://stable.melpa.org/packages/dicom-badge.svg"/></a>
 
@@ -22,7 +24,7 @@ files and DICOM images (file extension ~*.dcm~ or ~*.ima~). Furthermore the comm
 
 * Installation
 
-Dicom.el is available on MELPA and can be installed via ~M-x package-install RET dicom RET~.
+Dicom.el is available from [[https://elpa.gnu.org/packages/dicom.html][ELPA]] or [[https://melpa.org/#/dicom][MELPA]] and can be installed via ~M-x package-install RET dicom RET~.
 After installation, you can open ~DICOMDIR~ and DICOM image files.
 
 Emacs must be compiled with support for PNG, SVG and XML. The package relies on
