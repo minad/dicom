@@ -524,6 +524,8 @@ The command is specified as FMT string with ARGS."
               outline-minor-mode-cycle t
               outline-minor-mode-use-buttons 'in-margins
               cursor-face-highlight-nonselected-window t
+              mode-line-modified nil
+              mode-line-mule-info nil
               header-line-format
               (format (propertize " DICOM %s %s" 'face 'dicom-header)
                       (if (dicom--dir-p) "DIR" "IMAGE")
