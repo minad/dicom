@@ -522,6 +522,7 @@ The command is specified as FMT string with ARGS."
               revert-buffer-function (lambda (&rest _) (dicom--setup file))
               outline-regexp "\\*+"
               outline-minor-mode-cycle t
+              outline-minor-mode-cycle-filter nil
               outline-minor-mode-use-buttons 'in-margins
               cursor-face-highlight-nonselected-window t
               mode-line-modified nil
