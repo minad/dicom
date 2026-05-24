@@ -32,9 +32,10 @@ external programs from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit,
 Linux distributions.
 
 - ~dcm2xml~ and ~dcm2img~ from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit
-- ~magick~ from [[https://imagemagick.org/][ImageMagick]]
-- ~ffmpeg~ for video conversion (optional)
-- ~mpv~ for video playing (optional)
+- ~magick~ from [[https://imagemagick.org/][ImageMagick]] (optional fallback)
+- ~gdcmconv~ from [[https://sourceforge.net/projects/gdcm/][Grassroots DICOM]] (optional fallback)
+- ~ffmpeg~ for video conversion (optional for video)
+- ~mpv~ for video playing (optional for video)
 
 * Supported files
 
@@ -42,5 +43,5 @@ The DICOM format is quite diverse. The ~dcm2xml~ tool can read the metadata of
 most uncorrupted DICOM files. It can still happen that the DICOM viewer is
 unable to display files, if the metadata records are not interpreted properly.
 Furthermore the DICOM format supports a variety of underlying image formats and
-compressions, which might not be supported by ImageMagick. In such cases, any
+compressions, which might not be supported by the converter. In such cases, any
 help improving the package is welcome.

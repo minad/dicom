@@ -41,7 +41,8 @@
 ;; on Linux distributions.
 
 ;; - `dcm2xml' and `dcm2img' from the dcmtk DICOM toolkit
-;; - `magick' from ImageMagick
+;; - `magick' as fallback for image conversion (optional)
+;; - `gdcmconv' as fallback for image conversion (optional)
 ;; - `ffmpeg' for video conversion (optional)
 ;; - `mpv' for video playing (optional)
 
@@ -158,6 +159,10 @@ progress:${percent-pos}%%' %s) & disown"
 
 ;;;; Internal variables
 
+(defvar dicom--convert-script
+  (locate-library "dicom-convert.sh")
+  "Converter script.")
+
 (defvar-local dicom--data nil
   "Metadata of the current buffer.")
 
@@ -222,7 +227,7 @@ progress:${percent-pos}%%' %s) & disown"
   (make-directory dicom-cache-dir t)
   (setq ext (or ext "png")
         file (file-name-concat dicom-cache-dir (md5 file)))
-  (cons (concat file "." ext) (concat file ".tmp." ext)))
+  (concat file "." ext))
 
 (defun dicom--convert-children (dom &optional tag)
   "Convert children of DOM with TAG."
@@ -297,12 +302,13 @@ progress:${percent-pos}%%' %s) & disown"
         (funcall fun image)
         (put-text-property pos (1+ pos) 'display `(image ,@(cdr image)))))))
 
-(defun dicom--run (cb cmd)
-  "Run process with CMD asynchronously and call CB when the process finished."
+(defun dicom--run (cb args)
+  "Run process with ARGS asynchronously and call CB when the process succeeded."
   (let ((default-directory "/"))
     (push (make-process
            :name "dicom"
-           :command (list "sh" "-c" cmd)
+           :command `("bash" ,dicom--convert-script
+                      ,@(mapcar (lambda (x) (format "%s" x)) args))
            :noquery t
            :filter #'ignore
            :sentinel
@@ -311,20 +317,17 @@ progress:${percent-pos}%%' %s) & disown"
                (when (buffer-live-p buf)
                  (with-current-buffer buf
                    (cl-callf2 delq proc dicom--procs)
-                   (funcall cb (string-prefix-p "finished" event))
+                   (when (string-prefix-p "finished" event)
+                     (funcall cb))
                    (dicom--process))))))
           dicom--procs)
     (when dicom-timeout
       (run-at-time dicom-timeout nil #'dicom--stop (car dicom--procs)))))
 
-(defun dicom--enqueue (cb fmt &rest args)
+(defun dicom--enqueue (cb &rest args)
   "Enqueue conversion job with callback CB.
 The command is specified as FMT string with ARGS."
-  (push (cons cb (apply #'format fmt
-                        (mapcar (lambda (x)
-                                  (if (numberp x) x (shell-quote-argument x)))
-                                args)))
-        dicom--queue)
+  (push (cons cb args) dicom--queue)
   (when (length< dicom--procs dicom-parallel)
     (dicom--process)))
 
@@ -362,25 +365,22 @@ The command is specified as FMT string with ARGS."
             title)
     'face (list 'dicom-title (intern (format "outline-%s" level))))))
 
-(defun dicom--image-callback (tmp dst pos)
-  "Job callback closure with TMP, DST and POS."
-  (lambda (success)
-    (if success
-        (with-silent-modifications
-          (rename-file tmp dst)
-          (put-text-property pos (1+ pos) 'display (dicom--image-desc dst)))
-      (delete-file tmp))))
+(defun dicom--image-callback (dst pos)
+  "Job callback closure with DST and POS."
+  (lambda ()
+    (with-silent-modifications
+      (put-text-property pos (1+ pos) 'display (dicom--image-desc dst)))))
 
 (defun dicom--thumb (level item)
   "Insert ITEM with thumbnail at LEVEL into buffer."
-  (pcase-let* ((src (expand-file-name
-                     (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
-               (`(,dst . ,tmp) (dicom--cache-name src))
-               (exists (file-exists-p dst))
-               (pos (point))
-               (tooltip (progn
-                          (dicom--item level item "")
-                          (buffer-substring-no-properties pos (point)))))
+  (let* ((src (expand-file-name
+               (string-replace "\\" "/" (alist-get 'ReferencedFileID item))))
+         (dst (dicom--cache-name src))
+         (exists (file-exists-p dst))
+         (pos (point))
+         (tooltip (progn
+                    (dicom--item level item "")
+                    (buffer-substring-no-properties pos (point)))))
     (delete-region pos (point))
     (insert (propertize
              " "
@@ -398,16 +398,8 @@ The command is specified as FMT string with ARGS."
              'dicom--file src
              'help-echo tooltip))
     (unless exists
-      (dicom--enqueue
-       (dicom--image-callback tmp dst pos)
-       ;; If you wonder why we have to try these different commands to extract
-       ;; an image, maybe contribute patches to `dcm2img' or `magick' to improve
-       ;; coverage over the many DICOM image variants. Every order would work.
-       ;; The only difference might be performance. 😉
-       "dcm2img --write-png --scale-y-size %d %s %s || magick %s[0] -resize x%d %s || magick %s[-1] -resize x%d %s"
-       dicom-thumb-height src tmp
-       src dicom-thumb-height tmp
-       src dicom-thumb-height tmp))))
+      (dicom--enqueue (dicom--image-callback dst pos)
+                      "thumb" src dst dicom-thumb-height))))
 
 (defun dicom--item (level item &optional indent)
   "Insert ITEM at LEVEL into buffer."
@@ -470,9 +462,9 @@ The command is specified as FMT string with ARGS."
   (when-let* ((frames (alist-get 'NumberOfFrames dicom--data)))
     (dicom--button (format "Play (%s frames)" frames) #'dicom-play))
   (insert "\n" (propertize "\n" 'face '(:height 0.2)))
-  (pcase-let* ((`(,dst . ,tmp) (dicom--cache-name (concat "large" dicom--file)))
-               (exists (file-exists-p dst))
-               (pos (point)))
+  (let* ((dst (dicom--cache-name (concat "large" dicom--file)))
+         (exists (file-exists-p dst))
+         (pos (point)))
     (insert (propertize
              " "
              'dicom--image t
@@ -485,10 +477,8 @@ The command is specified as FMT string with ARGS."
                          (alist-get 'Rows dicom--data 600))))
             "\n")
     (unless exists
-      (dicom--enqueue
-       (dicom--image-callback tmp dst pos)
-       "dcm2img --write-png %s %s || magick %s[0] %s || magick %s[-1] %s"
-       dicom--file tmp dicom--file tmp dicom--file tmp))))
+      (dicom--enqueue (dicom--image-callback dst pos)
+                      "image" dicom--file dst))))
 
 (defun dicom--setup-check ()
   "Check requirements."
@@ -500,7 +490,7 @@ The command is specified as FMT string with ARGS."
     (dolist (type '(png svg))
       (unless (image-type-available-p type)
         (push (format "lib%s" type) req)))
-    (dolist (exe '("dcm2xml" "dcm2img" "magick"))
+    (dolist (exe '("dcm2xml" "dcm2img"))
       (unless (executable-find exe)
         (push exe req)))
     (when req
@@ -530,7 +520,11 @@ The command is specified as FMT string with ARGS."
               header-line-format
               (format (propertize " DICOM %s %s" 'face 'dicom-header)
                       (if (dicom--dir-p) "DIR" "IMAGE")
-                      (cadr (dicom--file-name)))))
+                      (cadr (dicom--file-name)))
+              ;; Emacs 31 margin face
+              face-remapping-alist `((margin dicom-header)
+                                     ,@face-remapping-alist)))
+
 
 (defun dicom--setup-content ()
   "Setup buffer content."
@@ -614,7 +608,7 @@ The command is specified as FMT string with ARGS."
   "Play DICOM multi frame image."
   (interactive nil dicom-mode)
   (with-current-buffer (dicom--image-buffer)
-    (pcase-let ((`(,dst . ,tmp) (dicom--cache-name dicom--file "mp4")))
+    (let ((dst (dicom--cache-name dicom--file "mp4")))
       (cond
        ((file-exists-p dst)
         (message "Playing %s…" (abbreviate-file-name dicom--file))
@@ -628,19 +622,11 @@ The command is specified as FMT string with ARGS."
           (user-error "DICOM: No multi frame image"))
         (message "Converting %s…" (abbreviate-file-name dicom--file))
         (let (dicom-timeout)
-          (dicom--enqueue
-           (lambda (success)
-             (if success
-                 (progn
-                   (rename-file tmp dst)
-                   (dicom-play))
-               (delete-file tmp)))
-           "(dcm2img --all-frames --write-bmp %s || magick %s bmp:-) | ffmpeg -framerate %s -i - %s"
-           dicom--file dicom--file
-           (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
-               (alist-get 'CineRate dicom--data)
-               "25")
-           tmp)))))))
+          (dicom--enqueue #'dicom-play
+                          "video" dicom--file dst
+                          (or (alist-get 'RecommendedDisplayFrameRate dicom--data)
+                              (alist-get 'CineRate dicom--data)
+                              "25"))))))))
 
 ;;;###autoload
 (defun dicom-open-at-point ()
