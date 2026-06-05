@@ -2,6 +2,10 @@
 #+author: Daniel Mendler
 #+language: en
 
+* Development
+
+- Introduce =dicom-convert.sh= script for DICOM to image and video conversion.
+
 * Version 1.4 (2026-05-19)
 
 - Require Compat 31.
