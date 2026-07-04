@@ -29,7 +29,7 @@ After installation, you can open ~DICOMDIR~ and DICOM image files.
 
 Emacs must be compiled with support for PNG, SVG and XML. The package relies on
 external programs from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit, which is widely available on
-Linux distributions.
+Linux distributions. Some programs are used as optional fallbacks.
 
 - ~dcm2xml~ and ~dcm2img~ from the [[https://dcmtk.org/en/dcmtk/][DCMTK]] DICOM toolkit
 - ~magick~ from [[https://imagemagick.org/][ImageMagick]] (optional fallback)
@@ -43,5 +43,5 @@ The DICOM format is quite diverse. The ~dcm2xml~ tool can read the metadata of
 most uncorrupted DICOM files. It can still happen that the DICOM viewer is
 unable to display files, if the metadata records are not interpreted properly.
 Furthermore the DICOM format supports a variety of underlying image formats and
-compressions, which might not be supported by the converter. In such cases, any
-help improving the package is welcome.
+compressions, which might not be supported by the [[https://github.com/minad/dicom/blob/main/dicom-convert.sh][dicom-convert.sh]] shell script.
+Help improving the package is very welcome!
